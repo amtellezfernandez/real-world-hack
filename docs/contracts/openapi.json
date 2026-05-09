@@ -1,0 +1,1077 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "RobotOps Sentinel API",
+    "summary": "Closed-loop critical-zone safety monitoring backend.",
+    "license": {
+      "name": "Proprietary hackathon prototype",
+      "identifier": "LicenseRef-Proprietary"
+    },
+    "version": "0.1.0"
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8000",
+      "description": "Local development backend"
+    }
+  ],
+  "paths": {
+    "/api/demo-replay": {
+      "get": {
+        "tags": [
+          "demo replay"
+        ],
+        "summary": "Get Demo Replay",
+        "description": "Return the controlled replay for the primary operations view.",
+        "operationId": "get_demo_replay_api_demo_replay_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoReplay"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Get Health",
+        "description": "Return backend readiness.",
+        "operationId": "get_health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/product-contract": {
+      "get": {
+        "tags": [
+          "contracts"
+        ],
+        "summary": "Get Product Contract",
+        "description": "Return the shared product contract catalog.",
+        "operationId": "get_product_contract_api_product_contract_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductContract"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AlertEvent": {
+        "properties": {
+          "incident_id": {
+            "type": "string",
+            "title": "Incident Id"
+          },
+          "approval_actor": {
+            "type": "string",
+            "title": "Approval Actor"
+          },
+          "alert_text": {
+            "type": "string",
+            "title": "Alert Text"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/AlertProvider"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          },
+          "audio_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Ref"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "incident_id",
+          "approval_actor",
+          "alert_text",
+          "provider",
+          "timestamp"
+        ],
+        "title": "AlertEvent",
+        "description": "Human-approved alert broadcast record."
+      },
+      "AlertProvider": {
+        "type": "string",
+        "enum": [
+          "local_audio",
+          "mistral",
+          "elevenlabs"
+        ],
+        "title": "AlertProvider",
+        "description": "Voice output provider categories exposed to product code."
+      },
+      "AuditPacket": {
+        "properties": {
+          "incident_id": {
+            "type": "string",
+            "title": "Incident Id"
+          },
+          "before_frame_id": {
+            "type": "string",
+            "title": "Before Frame Id"
+          },
+          "after_frame_id": {
+            "type": "string",
+            "title": "After Frame Id"
+          },
+          "before_timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Before Timestamp"
+          },
+          "after_timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "After Timestamp"
+          },
+          "alert_transcript": {
+            "type": "string",
+            "title": "Alert Transcript"
+          },
+          "verification_verdict": {
+            "$ref": "#/components/schemas/VerificationVerdict"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "incident_id",
+          "before_frame_id",
+          "after_frame_id",
+          "before_timestamp",
+          "after_timestamp",
+          "alert_transcript",
+          "verification_verdict"
+        ],
+        "title": "AuditPacket",
+        "description": "Closed incident evidence package."
+      },
+      "ClearanceVerification": {
+        "properties": {
+          "verdict": {
+            "$ref": "#/components/schemas/VerificationVerdict"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence"
+          },
+          "rationale": {
+            "type": "string",
+            "title": "Rationale"
+          },
+          "after_evidence_frame_id": {
+            "type": "string",
+            "title": "After Evidence Frame Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "verdict",
+          "confidence",
+          "rationale",
+          "after_evidence_frame_id"
+        ],
+        "title": "ClearanceVerification",
+        "description": "Before/after visual clearance verification record."
+      },
+      "CriticalZone": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "zone_type": {
+            "$ref": "#/components/schemas/ZoneType"
+          },
+          "geometry": {
+            "items": {
+              "$ref": "#/components/schemas/ZonePoint"
+            },
+            "type": "array",
+            "minItems": 3,
+            "title": "Geometry"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/CriticalZonePolicy"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "zone_type",
+          "geometry",
+          "policy"
+        ],
+        "title": "CriticalZone",
+        "description": "Site-defined physical area monitored for safety violations."
+      },
+      "CriticalZonePolicy": {
+        "properties": {
+          "dwell_threshold_seconds": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Dwell Threshold Seconds"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/Severity"
+          },
+          "escalation_channel": {
+            "type": "string",
+            "title": "Escalation Channel"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "dwell_threshold_seconds",
+          "severity",
+          "escalation_channel"
+        ],
+        "title": "CriticalZonePolicy",
+        "description": "Policy controlling when observations become incidents."
+      },
+      "DemoReplay": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "zone": {
+            "$ref": "#/components/schemas/CriticalZone"
+          },
+          "timing": {
+            "$ref": "#/components/schemas/DemoTiming"
+          },
+          "frames": {
+            "items": {
+              "$ref": "#/components/schemas/ReplayFrame"
+            },
+            "type": "array",
+            "minItems": 2,
+            "title": "Frames"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "zone",
+          "timing",
+          "frames"
+        ],
+        "title": "DemoReplay",
+        "description": "Controlled replay source for the primary robot-workcell demo."
+      },
+      "DemoTiming": {
+        "properties": {
+          "default_mode": {
+            "$ref": "#/components/schemas/DemoTimingMode"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/DemoTimingOption"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Options"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "default_mode",
+          "options"
+        ],
+        "title": "DemoTiming",
+        "description": "Replay timing options that do not change lifecycle states."
+      },
+      "DemoTimingMode": {
+        "type": "string",
+        "enum": [
+          "stage",
+          "real_time"
+        ],
+        "title": "DemoTimingMode",
+        "description": "Demo replay pacing modes."
+      },
+      "DemoTimingOption": {
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/DemoTimingMode"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "frame_interval_ms": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Frame Interval Ms"
+          },
+          "playback_dwell_seconds": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Playback Dwell Seconds"
+          },
+          "playback_clearance_seconds": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Playback Clearance Seconds"
+          },
+          "requires_external_providers": {
+            "type": "boolean",
+            "title": "Requires External Providers"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "mode",
+          "label",
+          "frame_interval_ms",
+          "playback_dwell_seconds",
+          "playback_clearance_seconds",
+          "requires_external_providers"
+        ],
+        "title": "DemoTimingOption",
+        "description": "Single replay pacing option for demo controls."
+      },
+      "EvidenceAnnotation": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "confidence": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Confidence"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "label",
+          "confidence"
+        ],
+        "title": "EvidenceAnnotation",
+        "description": "Label attached to an evidence frame."
+      },
+      "EvidenceFrame": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "source": {
+            "$ref": "#/components/schemas/EvidenceSource"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          },
+          "image_ref": {
+            "type": "string",
+            "title": "Image Ref"
+          },
+          "annotations": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceAnnotation"
+            },
+            "type": "array",
+            "title": "Annotations"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "timestamp",
+          "image_ref"
+        ],
+        "title": "EvidenceFrame",
+        "description": "Frame or image reference supporting an observation or incident."
+      },
+      "EvidenceSource": {
+        "type": "string",
+        "enum": [
+          "camera",
+          "replay",
+          "uploaded_image",
+          "generated_test_frame"
+        ],
+        "title": "EvidenceSource",
+        "description": "Evidence frame source categories."
+      },
+      "ExportStatus": {
+        "type": "string",
+        "enum": [
+          "local_only",
+          "export_pending",
+          "exported",
+          "export_unavailable"
+        ],
+        "title": "ExportStatus",
+        "description": "Review/export availability states."
+      },
+      "HealthResponse": {
+        "properties": {
+          "service": {
+            "type": "string",
+            "title": "Service"
+          },
+          "status": {
+            "type": "string",
+            "const": "ready",
+            "title": "Status"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "service",
+          "status",
+          "version"
+        ],
+        "title": "HealthResponse",
+        "description": "Backend readiness response."
+      },
+      "IncidentReport": {
+        "properties": {
+          "hazard": {
+            "type": "string",
+            "title": "Hazard"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/Severity"
+          },
+          "evidence_summary": {
+            "type": "string",
+            "title": "Evidence Summary"
+          },
+          "rationale": {
+            "type": "string",
+            "title": "Rationale"
+          },
+          "recommended_action": {
+            "type": "string",
+            "title": "Recommended Action"
+          },
+          "alert_text_candidate": {
+            "type": "string",
+            "title": "Alert Text Candidate"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "hazard",
+          "severity",
+          "evidence_summary",
+          "rationale",
+          "recommended_action",
+          "alert_text_candidate"
+        ],
+        "title": "IncidentReport",
+        "description": "Structured explanation generated for an opened incident."
+      },
+      "IncidentState": {
+        "type": "string",
+        "enum": [
+          "clear",
+          "dwell",
+          "incident_open",
+          "alert_pending",
+          "alert_broadcast",
+          "clearing",
+          "verified_clear",
+          "closed",
+          "uncertain"
+        ],
+        "title": "IncidentState",
+        "description": "Policy-controlled safety incident lifecycle states."
+      },
+      "Observation": {
+        "properties": {
+          "zone_id": {
+            "type": "string",
+            "title": "Zone Id"
+          },
+          "observed_state": {
+            "$ref": "#/components/schemas/ObservedState"
+          },
+          "dwell_duration_seconds": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Dwell Duration Seconds"
+          },
+          "evidence_frame_id": {
+            "type": "string",
+            "title": "Evidence Frame Id"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "zone_id",
+          "observed_state",
+          "dwell_duration_seconds",
+          "evidence_frame_id"
+        ],
+        "title": "Observation",
+        "description": "Evidence-backed critical-zone observation."
+      },
+      "ObservationAssessment": {
+        "properties": {
+          "incident_state": {
+            "$ref": "#/components/schemas/IncidentState"
+          },
+          "policy_reason": {
+            "type": "string",
+            "title": "Policy Reason"
+          },
+          "incident": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SafetyIncident"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "incident_state",
+          "policy_reason"
+        ],
+        "title": "ObservationAssessment",
+        "description": "Policy assessment for a critical-zone observation."
+      },
+      "ObservedState": {
+        "type": "string",
+        "enum": [
+          "clear",
+          "blocked",
+          "uncertain",
+          "camera_unavailable"
+        ],
+        "title": "ObservedState",
+        "description": "Observed state of a monitored critical zone."
+      },
+      "ProductContract": {
+        "properties": {
+          "primary_workflow": {
+            "type": "string",
+            "const": "robot_workcell_obstruction",
+            "title": "Primary Workflow"
+          },
+          "observation_states": {
+            "items": {
+              "$ref": "#/components/schemas/ObservedState"
+            },
+            "type": "array",
+            "title": "Observation States"
+          },
+          "incident_states": {
+            "items": {
+              "$ref": "#/components/schemas/IncidentState"
+            },
+            "type": "array",
+            "title": "Incident States"
+          },
+          "severity_levels": {
+            "items": {
+              "$ref": "#/components/schemas/Severity"
+            },
+            "type": "array",
+            "title": "Severity Levels"
+          },
+          "zone_types": {
+            "items": {
+              "$ref": "#/components/schemas/ZoneType"
+            },
+            "type": "array",
+            "title": "Zone Types"
+          },
+          "provider_boundaries": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderBoundary"
+            },
+            "type": "array",
+            "title": "Provider Boundaries"
+          },
+          "voice_provider_statuses": {
+            "items": {
+              "$ref": "#/components/schemas/VoiceProviderStatus"
+            },
+            "type": "array",
+            "title": "Voice Provider Statuses"
+          },
+          "review_export_provider_statuses": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewExportProviderStatus"
+            },
+            "type": "array",
+            "title": "Review Export Provider Statuses"
+          },
+          "provider_integration_statuses": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderIntegrationStatus"
+            },
+            "type": "array",
+            "title": "Provider Integration Statuses"
+          },
+          "reference_zone": {
+            "$ref": "#/components/schemas/CriticalZone"
+          },
+          "reference_evidence_frame": {
+            "$ref": "#/components/schemas/EvidenceFrame"
+          },
+          "reference_observation": {
+            "$ref": "#/components/schemas/Observation"
+          },
+          "reference_incident": {
+            "$ref": "#/components/schemas/SafetyIncident"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "primary_workflow",
+          "observation_states",
+          "incident_states",
+          "severity_levels",
+          "zone_types",
+          "provider_boundaries",
+          "voice_provider_statuses",
+          "review_export_provider_statuses",
+          "provider_integration_statuses",
+          "reference_zone",
+          "reference_evidence_frame",
+          "reference_observation",
+          "reference_incident"
+        ],
+        "title": "ProductContract",
+        "description": "Contract catalog shared with the frontend."
+      },
+      "ProviderAvailability": {
+        "type": "string",
+        "enum": [
+          "available",
+          "configured",
+          "unconfigured"
+        ],
+        "title": "ProviderAvailability",
+        "description": "Provider availability and configuration state."
+      },
+      "ProviderBoundary": {
+        "type": "string",
+        "enum": [
+          "perception",
+          "incident_reporting",
+          "voice",
+          "verification",
+          "review_export"
+        ],
+        "title": "ProviderBoundary",
+        "description": "Backend-only integration boundaries."
+      },
+      "ProviderIntegration": {
+        "type": "string",
+        "enum": [
+          "local_replay",
+          "runpod_yolo",
+          "local_incident_report",
+          "openai_foundry",
+          "local_audio",
+          "mistral",
+          "elevenlabs",
+          "local_clearance",
+          "gemini_robotics_er",
+          "local_review",
+          "encord"
+        ],
+        "title": "ProviderIntegration",
+        "description": "Concrete provider integrations exposed for demo readiness."
+      },
+      "ProviderIntegrationStatus": {
+        "properties": {
+          "provider": {
+            "$ref": "#/components/schemas/ProviderIntegration"
+          },
+          "boundary": {
+            "$ref": "#/components/schemas/ProviderBoundary"
+          },
+          "availability": {
+            "$ref": "#/components/schemas/ProviderAvailability"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "provider",
+          "boundary",
+          "availability",
+          "detail"
+        ],
+        "title": "ProviderIntegrationStatus",
+        "description": "Readiness status for a concrete provider integration."
+      },
+      "ReplayFrame": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "evidence_frame": {
+            "$ref": "#/components/schemas/EvidenceFrame"
+          },
+          "observation": {
+            "$ref": "#/components/schemas/Observation"
+          },
+          "assessment": {
+            "$ref": "#/components/schemas/ObservationAssessment"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "evidence_frame",
+          "observation",
+          "assessment"
+        ],
+        "title": "ReplayFrame",
+        "description": "Single replay frame paired with its critical-zone observation."
+      },
+      "ReviewDecision": {
+        "type": "string",
+        "enum": [
+          "accepted",
+          "corrected",
+          "rejected",
+          "pending"
+        ],
+        "title": "ReviewDecision",
+        "description": "Human review decisions for evidence samples."
+      },
+      "ReviewExportProvider": {
+        "type": "string",
+        "enum": [
+          "local_review",
+          "encord"
+        ],
+        "title": "ReviewExportProvider",
+        "description": "Review export destinations exposed to product code."
+      },
+      "ReviewExportProviderStatus": {
+        "properties": {
+          "provider": {
+            "$ref": "#/components/schemas/ReviewExportProvider"
+          },
+          "availability": {
+            "$ref": "#/components/schemas/ProviderAvailability"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "provider",
+          "availability",
+          "detail"
+        ],
+        "title": "ReviewExportProviderStatus",
+        "description": "Availability status for a review/eval destination."
+      },
+      "ReviewSample": {
+        "properties": {
+          "incident_id": {
+            "type": "string",
+            "title": "Incident Id"
+          },
+          "before_frame_id": {
+            "type": "string",
+            "title": "Before Frame Id"
+          },
+          "after_frame_id": {
+            "type": "string",
+            "title": "After Frame Id"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Labels"
+          },
+          "human_decision": {
+            "$ref": "#/components/schemas/ReviewDecision"
+          },
+          "export_status": {
+            "$ref": "#/components/schemas/ExportStatus"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "incident_id",
+          "before_frame_id",
+          "after_frame_id",
+          "labels",
+          "human_decision",
+          "export_status"
+        ],
+        "title": "ReviewSample",
+        "description": "Review/eval sample produced from a closed incident."
+      },
+      "SafetyIncident": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "zone_id": {
+            "type": "string",
+            "title": "Zone Id"
+          },
+          "state": {
+            "$ref": "#/components/schemas/IncidentState"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/Severity"
+          },
+          "before_evidence_frame_id": {
+            "type": "string",
+            "title": "Before Evidence Frame Id"
+          },
+          "incident_report": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IncidentReport"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "alert_events": {
+            "items": {
+              "$ref": "#/components/schemas/AlertEvent"
+            },
+            "type": "array",
+            "title": "Alert Events"
+          },
+          "verification": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClearanceVerification"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "audit_packet": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AuditPacket"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "review_sample": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewSample"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "zone_id",
+          "state",
+          "severity",
+          "before_evidence_frame_id"
+        ],
+        "title": "SafetyIncident",
+        "description": "Operational record for a critical-zone safety violation."
+      },
+      "Severity": {
+        "type": "string",
+        "enum": [
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "title": "Severity",
+        "description": "Incident severity levels."
+      },
+      "VerificationVerdict": {
+        "type": "string",
+        "enum": [
+          "clear",
+          "still_blocked",
+          "uncertain"
+        ],
+        "title": "VerificationVerdict",
+        "description": "Clearance verification verdicts."
+      },
+      "VoiceProviderStatus": {
+        "properties": {
+          "provider": {
+            "$ref": "#/components/schemas/AlertProvider"
+          },
+          "availability": {
+            "$ref": "#/components/schemas/ProviderAvailability"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "provider",
+          "availability",
+          "detail"
+        ],
+        "title": "VoiceProviderStatus",
+        "description": "Availability status for a voice output provider."
+      },
+      "ZonePoint": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Y"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "ZonePoint",
+        "description": "Normalized image coordinate for a zone polygon."
+      },
+      "ZoneType": {
+        "type": "string",
+        "enum": [
+          "emergency_exit",
+          "walkway",
+          "forklift_lane"
+        ],
+        "title": "ZoneType",
+        "description": "Supported critical-zone categories."
+      }
+    }
+  }
+}

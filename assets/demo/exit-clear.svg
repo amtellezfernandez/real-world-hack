@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">Clear robot workcell replay frame</title>
+  <desc id="desc">A robot workcell lane is clear with no obstruction inside the marked zone.</desc>
+  <defs>
+    <linearGradient id="floor" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#4f5d57" />
+      <stop offset="0.48" stop-color="#767b6d" />
+      <stop offset="1" stop-color="#2f3c38" />
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="720" fill="#26332f" />
+  <rect y="94" width="1280" height="626" fill="url(#floor)" />
+  <path d="M0 254h1280M0 384h1280M0 520h1280M160 94v626M360 94v626M620 94v626M920 94v626" stroke="#dce3d7" stroke-opacity="0.16" stroke-width="3" />
+  <rect x="76" y="82" width="330" height="560" fill="#24302d" />
+  <rect x="124" y="132" width="234" height="410" fill="#d9e7dd" />
+  <rect x="144" y="152" width="194" height="370" fill="#29443a" />
+  <rect x="178" y="186" width="128" height="72" rx="8" fill="#dce3d7" />
+  <text x="242" y="233" fill="#1b2d26" font-family="Arial, sans-serif" font-size="37" font-weight="700" text-anchor="middle">CELL</text>
+  <path d="M180 592h122" stroke="#f5d565" stroke-width="26" stroke-linecap="round" />
+  <path d="M506 128h166v92H506zM706 124h138v78H706zM916 146h212v104H916z" fill="#394842" opacity="0.65" />
+  <path d="M180 130h564v462H180z" fill="#29a364" fill-opacity="0.08" stroke="#f5d565" stroke-width="8" stroke-dasharray="24 16" />
+  <rect x="904" y="446" width="194" height="74" fill="#78624b" />
+  <rect x="924" y="372" width="154" height="74" fill="#82684e" />
+  <path d="M112 666h1036" stroke="#111827" stroke-opacity="0.4" stroke-width="24" stroke-linecap="round" />
+</svg>
