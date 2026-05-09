@@ -51,7 +51,7 @@ type ProviderStatusRow = {
   status: string;
 };
 
-/** URDF Zone frontend shell. */
+/** Kiwi robot audit shell. */
 function App() {
   const [loadState, setLoadState] = useState<OperationsLoadState>(initialState);
   const [activeFrameId, setActiveFrameId] = useState("");
@@ -193,17 +193,22 @@ function App() {
   return (
     <main className="operations-shell">
       <header className="topbar">
-        <div>
-          <p className="eyebrow">URDF Zone</p>
-          <h1>Autoloaded robot</h1>
+        <div className="brand-block">
+          <p className="eyebrow">Kiwi</p>
+          <h1>Robot audit workspace</h1>
           <p className="subhead">
             {contractSummary?.referenceZoneName ?? "Waiting for robot scene"}
           </p>
         </div>
-        <div className="status-pill">Robot scene: {loadState.status}</div>
+        <div className="status-strip">
+          <span className="status-pill">Scene: {loadState.status}</span>
+          <span className="status-pill">
+            Mode: {replayView?.defaultTimingMode ?? "pending"}
+          </span>
+        </div>
       </header>
 
-      <section className="workspace" aria-label="URDF Zone audit workspace">
+      <section className="workspace" aria-label="Kiwi robot audit workspace">
         <div className="video-stage">
           {loadState.status === "ready" &&
           replayView !== null &&
@@ -233,7 +238,7 @@ function App() {
 
         <aside className="incident-rail" aria-label="Audit state">
           {loadState.status === "loading" ? (
-            <p className="muted">Connecting to {getApiBaseUrl()}</p>
+            <p className="muted">Connecting to backend at {getApiBaseUrl()}</p>
           ) : null}
 
           {loadState.status === "error" ? (
@@ -458,7 +463,7 @@ function ContractPanel({
   return (
     <>
       <section className="panel-section">
-        <p className="eyebrow">Autoloaded scene</p>
+        <p className="eyebrow">Scene summary</p>
         <h2>{summary.primaryWorkflowLabel}</h2>
         <dl className="incident-facts">
           <div>
@@ -487,11 +492,27 @@ function ContractPanel({
             </dd>
           </div>
         </dl>
+        <DetailList
+          rows={[
+            {
+              label: "Robot",
+              value: "Kiwi",
+            },
+            {
+              label: "Scene",
+              value: "Autoloaded",
+            },
+            {
+              label: "Evidence",
+              value: summary.referenceEvidenceTimestamp,
+            },
+          ]}
+        />
       </section>
 
       {activeFrame !== null ? (
         <section className="panel-section">
-          <p className="eyebrow">Audit packet</p>
+          <p className="eyebrow">Current frame</p>
           <h2>{activeFrame.incidentStateLabel}</h2>
           <p className="assessment-reason">{activeFrame.policyReason}</p>
           {incidentReport !== null ? (
