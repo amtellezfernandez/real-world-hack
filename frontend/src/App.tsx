@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type CameraStatus = "starting" | "live" | "blocked";
-type RunPhase = "arming" | "moving" | "stopped" | "closed";
+type RunPhase = "arming" | "moving" | "incident";
 
 type MotionPose = {
   heading: number;
@@ -9,43 +9,53 @@ type MotionPose = {
   y: number;
 };
 
-type EncordExportStatus = "idle" | "captured" | "sending" | "exported" | "failed";
-type LiveIncidentSignalStatus = "accepted" | "exported" | "failed";
+// ── Warehouse coordinate system ─────────────────────────────
+// x: 0–80, y: 0–60.  Origin bottom-left.
+// SVG transform: svgX = x * 10, svgY = (60 - y) * 10
 
-const START_POSE: MotionPose = {
-  heading: 0,
-  x: 26,
-  y: 56,
-};
+function toSvgX(wx: number) { return wx * 10; }
+function toSvgY(wy: number) { return (60 - wy) * 10; }
 
-const STOP_X = 46;
-const POSE_STEP = 0.1;
-const BACKEND_BASE_URL =
-  import.meta.env.VITE_BACKEND_URL ?? "http://127.0.0.1:8000";
-const LIVE_INCIDENT_OPEN_ENDPOINT = `${BACKEND_BASE_URL}/api/demo-replay/incident/open`;
-const LIVE_INCIDENT_RESOLVE_ENDPOINT = `${BACKEND_BASE_URL}/api/demo-replay/incident/resolve`;
+// ── Warehouse zones (warehouse coords) ──────────────────────
+// STORAGE:   x 2–39, y 38–58
+// RECEIVING: x 41–78, y 38–58
+// AISLE:     x 2–78, y 30–37
+// OPS:       x 2–19, y 2–29
+// PICKING:   x 21–38, y 2–29
+// SHIPPING:  x 41–78, y 2–29
+
+// ── Robot path: PICKING → AISLE → STORAGE ───────────────────
+// Waypoints the robot follows in order (warehouse coords)
+const WAYPOINTS: MotionPose[] = [
+  { heading: 0,   x: 30, y: 10 },  // start: inside PICKING
+  { heading: 0,   x: 30, y: 33 },  // enter aisle, moving north
+  { heading: 270, x: 20, y: 33 },  // turn west through aisle
+  { heading: 0,   x: 20, y: 50 },  // arrive in STORAGE
+];
+
+// Obstruction sits in the aisle blocking the westward path
+const OBSTRUCTION = { x: 24, y: 33 };
+const OBSTRUCTION_RADIUS = 1.8;
+
+const START_POSE: MotionPose = { ...WAYPOINTS[0] };
+const POSE_STEP = 0.25;
+
 function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const poseRef = useRef(START_POSE);
   const phaseRef = useRef<RunPhase>("arming");
-  const alarmContextRef = useRef<AudioContext | null>(null);
-  const alarmTimerRef = useRef<number | null>(null);
-  const captureTokenRef = useRef(0);
+  const waypointIdxRef = useRef(0);
 
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>("starting");
   const [cameraMessage, setCameraMessage] = useState("");
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [phase, setPhase] = useState<RunPhase>("arming");
   const [pose, setPose] = useState(START_POSE);
-  const [clock, setClock] = useState(() => Date.now());
-  const [encordStatus, setEncordStatus] = useState<EncordExportStatus>("idle");
-  const [encordMessage, setEncordMessage] = useState("Waiting for the first incident.");
   const [lastAlert, setLastAlert] = useState(
-    "Webcam is live. The incident model slot is reserved for later.",
+    "Awaiting camera. Robot will depart PICKING once live.",
   );
-  const beforeFrameRef = useRef<string | null>(null);
-  const afterFrameRef = useRef<string | null>(null);
 
+  // ── Camera setup ───────────────────────────────────────────
   useEffect(() => {
     let active = true;
     let stream: MediaStream | null = null;
@@ -79,10 +89,7 @@ function App() {
         setCameraStatus("live");
         setCameraMessage("");
       } catch (error: unknown) {
-        if (!active) {
-          return;
-        }
-
+        if (!active) return;
         setCameraStatus("blocked");
         setCameraMessage(describeCameraError(error));
       }
@@ -92,7 +99,6 @@ function App() {
 
     return () => {
       active = false;
-
       if (stream !== null) {
         stream.getTracks().forEach((track) => track.stop());
       }
@@ -101,215 +107,120 @@ function App() {
 
   useEffect(() => {
     const video = videoRef.current;
-
-    if (cameraStream === null || video === null) {
-      return;
-    }
-
+    if (cameraStream === null || video === null) return;
     video.srcObject = cameraStream;
     video.muted = true;
     video.playsInline = true;
     video.autoplay = true;
-    video.onloadedmetadata = () => {
-      void video.play();
-    };
-
+    video.onloadedmetadata = () => { void video.play(); };
     void video.play();
   }, [cameraStream]);
 
-  useEffect(() => {
-    phaseRef.current = phase;
-  }, [phase]);
+  // ── Sync refs ──────────────────────────────────────────────
+  useEffect(() => { phaseRef.current = phase; }, [phase]);
+  useEffect(() => { poseRef.current = pose; }, [pose]);
 
+  // ── Arm → Moving after camera goes live ────────────────────
   useEffect(() => {
-    poseRef.current = pose;
-  }, [pose]);
-
-  useEffect(() => {
-    return () => {
-      stopIncidentAlarm(alarmContextRef, alarmTimerRef);
-    };
-  }, []);
-
-  useEffect(() => {
-    const clockTimer = window.setInterval(() => {
-      setClock(Date.now());
-    }, 500);
-
-    return () => window.clearInterval(clockTimer);
-  }, []);
-
-  useEffect(() => {
-    if (cameraStatus !== "live" || phase !== "arming") {
-      return;
-    }
+    if (cameraStatus !== "live" || phase !== "arming") return;
 
     const armTimer = window.setTimeout(() => {
-      if (phaseRef.current !== "arming") {
-        return;
-      }
-
+      if (phaseRef.current !== "arming") return;
       phaseRef.current = "moving";
+      waypointIdxRef.current = 0;
       setPhase("moving");
-      setLastAlert("Lane armed. Motion engaged.");
+      setLastAlert("Robot departing PICKING zone. Heading toward STORAGE.");
     }, 700);
 
     return () => window.clearTimeout(armTimer);
   }, [cameraStatus, phase]);
 
+  // ── Motion tick ────────────────────────────────────────────
   useEffect(() => {
     const interval = window.setInterval(() => {
-      if (phaseRef.current !== "moving") {
+      if (phaseRef.current !== "moving") return;
+
+      const cur = poseRef.current;
+      const wpIdx = waypointIdxRef.current;
+      const nextWpIdx = wpIdx + 1;
+
+      if (nextWpIdx >= WAYPOINTS.length) {
+        // Reached final waypoint
+        phaseRef.current = "incident";
+        setPhase("incident");
+        setLastAlert("Robot arrived at STORAGE.");
         return;
       }
 
-      const current = poseRef.current;
-      const nextX = Math.min(current.x + POSE_STEP, STOP_X);
-      const nextPose: MotionPose = {
-        heading: 0,
-        x: nextX,
-        y: current.y,
-      };
+      const target = WAYPOINTS[nextWpIdx];
+      const dx = target.x - cur.x;
+      const dy = target.y - cur.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      let nextPose: MotionPose;
+
+      if (dist <= POSE_STEP) {
+        // Snap to waypoint and advance
+        nextPose = { ...target };
+        waypointIdxRef.current = nextWpIdx;
+      } else {
+        const ux = dx / dist;
+        const uy = dy / dist;
+        nextPose = {
+          heading: target.heading,
+          x: cur.x + ux * POSE_STEP,
+          y: cur.y + uy * POSE_STEP,
+        };
+      }
+
+      // Check obstruction collision
+      const odx = nextPose.x - OBSTRUCTION.x;
+      const ody = nextPose.y - OBSTRUCTION.y;
+      const oDist = Math.sqrt(odx * odx + ody * ody);
+
+      if (oDist < OBSTRUCTION_RADIUS + 1) {
+        phaseRef.current = "incident";
+        setPhase("incident");
+        setPose(nextPose);
+        setLastAlert("⚠ Incident: Obstruction detected in aisle! Robot stopped.");
+        return;
+      }
 
       poseRef.current = nextPose;
       setPose(nextPose);
-
-      if (nextX >= STOP_X) {
-        phaseRef.current = "closed";
-        setPhase("closed");
-        setLastAlert("Lane traversal finished.");
-      }
-    }, 180);
+    }, 80);
 
     return () => window.clearInterval(interval);
   }, []);
 
-  const progress = useMemo(() => {
-    const range = STOP_X - START_POSE.x;
-    return clamp((pose.x - START_POSE.x) / range, 0, 1);
-  }, [pose.x]);
-
+  // ── Derived state ──────────────────────────────────────────
   const motionState =
-    phase === "arming"
-      ? "arming"
-      : phase === "moving"
-        ? "moving"
-        : phase === "stopped"
-          ? "stopped"
-          : "closed";
-  const incidentState = phase === "stopped" ? "open" : "clear";
+    phase === "arming" ? "arming" : phase === "moving" ? "moving" : "incident";
+
+  const displayCoord = `(${pose.x.toFixed(1)}, ${pose.y.toFixed(1)})`;
 
   function resetRun() {
-    captureTokenRef.current += 1;
-    stopIncidentAlarm(alarmContextRef, alarmTimerRef);
     phaseRef.current = cameraStatus === "live" ? "moving" : "arming";
     poseRef.current = START_POSE;
-    beforeFrameRef.current = null;
-    afterFrameRef.current = null;
-    setEncordStatus("idle");
-    setEncordMessage("Waiting for the first incident.");
+    waypointIdxRef.current = 0;
     setPhase(cameraStatus === "live" ? "moving" : "arming");
     setPose(START_POSE);
-    setLastAlert("Run reset. Motion resumes from the current lane start.");
+    setLastAlert("Run reset. Robot returning to PICKING.");
   }
 
-  async function openIncident() {
-    if (phaseRef.current !== "moving") {
-      return;
-    }
-
-    captureTokenRef.current += 1;
-    const captureToken = captureTokenRef.current;
-    setEncordStatus("sending");
-    setEncordMessage("Capturing the live before frame for Encord.");
-    const capturedBefore = await captureLiveFrameUntilReady(
-      videoRef.current,
-      captureTokenRef,
-      captureToken,
-    );
-    if (capturedBefore === null) {
-      return;
-    }
-
-    setEncordStatus("sending");
-    setEncordMessage("Sending before frame to the backend.");
-    const result = await sendLiveIncidentSignal(LIVE_INCIDENT_OPEN_ENDPOINT, capturedBefore);
-    if (result.status !== "accepted") {
-      setEncordStatus("failed");
-      setEncordMessage(result.detail);
-      setLastAlert("Incident open failed.");
-      return;
-    }
-
-    beforeFrameRef.current = capturedBefore;
-    afterFrameRef.current = null;
-    phaseRef.current = "stopped";
-    setPhase("stopped");
-    void startIncidentAlarm(alarmContextRef, alarmTimerRef, phaseRef);
-    setEncordStatus("captured");
-    setEncordMessage("Before frame stored. Resolve the incident to export to Encord.");
-    setLastAlert("Incident open. Motion paused.");
-  }
-
-  async function resolveIncident() {
-    if (phaseRef.current !== "stopped") {
-      return;
-    }
-
-    captureTokenRef.current += 1;
-    const captureToken = captureTokenRef.current;
-    setEncordStatus("sending");
-    setEncordMessage("Capturing the live after frame and exporting to Encord.");
-    const capturedAfter = await captureLiveFrameUntilReady(
-      videoRef.current,
-      captureTokenRef,
-      captureToken,
-    );
-    if (capturedAfter === null) {
-      return;
-    }
-
-    afterFrameRef.current = capturedAfter;
-    phaseRef.current = "moving";
-    setPhase("moving");
-    stopIncidentAlarm(alarmContextRef, alarmTimerRef);
-    setLastAlert("Incident cleared. Motion resumed.");
-
-    if (beforeFrameRef.current === null) {
-      setEncordStatus("failed");
-      setEncordMessage("No before frame was captured. Resolve and reopen the incident.");
-      return;
-    }
-
-    setEncordStatus("sending");
-    setEncordMessage("Sending after frame to the backend and exporting to Encord.");
-    const result = await sendLiveIncidentSignal(LIVE_INCIDENT_RESOLVE_ENDPOINT, capturedAfter);
-    if (result.status === "exported") {
-      setEncordStatus("exported");
-      setEncordMessage(result.detail);
-      beforeFrameRef.current = null;
-      afterFrameRef.current = null;
-      return;
-    }
-
-    setEncordStatus("failed");
-    setEncordMessage(result.detail);
-  }
-
+  // ── Render ─────────────────────────────────────────────────
   return (
     <main className="shell">
       <header className="header">
         <div className="title-block">
           <p className="eyebrow">Runtime</p>
           <h1>Warehouse incident console</h1>
-          <p className="subhead">Left: camera evidence. Center: aisle plan. Right: incident state.</p>
+          <p className="subhead">Left: camera evidence. Top right: warehouse plan. Bottom right: incident state.</p>
         </div>
         <div className="header-status">
           <span className="status-pill">Camera {cameraStatus === "live" ? "live" : cameraStatus}</span>
-          <span className="status-pill">Incident {incidentState}</span>
           <span className="status-pill">Motion {motionState}</span>
-          <span className="status-pill">Encord {encordStatus}</span>
-          <span className="status-pill">Run {Math.round(progress * 100)}%</span>
+          <span className="status-pill">Loc {displayCoord}</span>
         </div>
       </header>
 
@@ -342,42 +253,44 @@ function App() {
             <div className="card-head">
               <div>
                 <p className="eyebrow">2. Plan</p>
-                <h2>Straight aisle</h2>
+                <h2>Warehouse map</h2>
               </div>
-              <span className="card-note">Scripted motion</span>
+              <span className="card-note">PICKING → STORAGE</span>
             </div>
-            <WarehouseMap pose={pose} />
+            <WarehouseMap pose={pose} phase={phase} />
           </section>
         </section>
 
         <aside className="rail" aria-label="Incident rail">
           <section className="panel panel--compact">
             <p className="eyebrow">3. Incident</p>
-            <h2>{motionState}</h2>
+            <h2 className={phase === "incident" ? "incident-title" : ""}>{motionState}</h2>
             <div className="metric-list metric-list--compact">
               <MetricRow label="Vision" value="model pending" />
               <MetricRow label="Heading" value={`${pose.heading.toFixed(0)}°`} />
-              <MetricRow label="Progress" value={`${Math.round(progress * 100)}%`} />
-              <MetricRow label="Export" value={encordStatus} />
+              <MetricRow label="Position" value={displayCoord} />
+              <MetricRow label="Zone" value={getZoneName(pose)} />
             </div>
-            <div className="action-row">
-              <button className="action-button" onClick={openIncident} type="button">
-                Open incident
-              </button>
-              <button className="action-button action-button--secondary" onClick={resolveIncident} type="button">
-                Resolve
-              </button>
-            </div>
-            <button className="action-button action-button--ghost" onClick={resetRun} type="button">
+            <button className="action-button" onClick={resetRun} type="button">
               Reset run
             </button>
-            <p className="note">{lastAlert}</p>
-            <p className="note">{encordMessage}</p>
+            <p className={`note ${phase === "incident" ? "note--alert" : ""}`}>{lastAlert}</p>
           </section>
         </aside>
       </section>
     </main>
   );
+}
+
+function getZoneName(pose: MotionPose): string {
+  const { x, y } = pose;
+  if (x >= 2 && x <= 39 && y >= 38) return "STORAGE";
+  if (x >= 41 && y >= 38) return "RECEIVING";
+  if (y >= 30 && y <= 37) return "AISLE";
+  if (x >= 2 && x <= 19 && y < 30) return "OPS";
+  if (x >= 21 && x <= 38 && y < 30) return "PICKING";
+  if (x >= 41 && y < 30) return "SHIPPING";
+  return "TRANSIT";
 }
 
 function MetricRow({ label, value }: { label: string; value: string }) {
@@ -389,315 +302,139 @@ function MetricRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-async function sendLiveIncidentSignal(
-  endpoint: "/api/demo-replay/incident/open" | "/api/demo-replay/incident/resolve",
-  imageDataUrl: string,
-) {
-  try {
-    const response = await fetch(endpoint, {
-      body: JSON.stringify({
-        image_data_url: imageDataUrl,
-      }),
-      headers: {
-        "Content-Type": "application/json",
-      },
-      method: "POST",
-    });
+// ── SVG Warehouse Map ────────────────────────────────────────
+function WarehouseMap({ pose, phase }: { pose: MotionPose; phase: RunPhase }) {
+  // Robot position in SVG
+  const rx = toSvgX(pose.x);
+  const ry = toSvgY(pose.y);
 
-    const payload: { status?: LiveIncidentSignalStatus; detail?: string } =
-      await response.json();
+  // Obstruction in SVG
+  const ox = toSvgX(OBSTRUCTION.x);
+  const oy = toSvgY(OBSTRUCTION.y);
 
-    if (!response.ok) {
-      return {
-        detail: payload.detail ?? `Request failed with status ${response.status}.`,
-        status: "failed" as const,
-      };
-    }
-
-    if (payload.status === "accepted" || payload.status === "exported") {
-      return {
-        detail: payload.detail ?? "Incident signal accepted.",
-        status: payload.status,
-      };
-    }
-
-    return {
-      detail: payload.detail ?? "Incident signal failed.",
-      status: "failed" as const,
-    };
-  } catch (error: unknown) {
-    return {
-      detail: describeError(error, "Incident signal failed."),
-      status: "failed" as const,
-    };
-  }
-}
-
-async function startIncidentAlarm(
-  alarmContextRef: MutableRefObject<AudioContext | null>,
-  alarmTimerRef: MutableRefObject<number | null>,
-  phaseRef: MutableRefObject<RunPhase>,
-) {
-  if (alarmTimerRef.current !== null) {
-    return;
-  }
-
-  const audioContext = await getOrCreateAudioContext(alarmContextRef);
-  if (audioContext === null) {
-    return;
-  }
-
-  await audioContext.resume();
-
-  const beep = () => {
-    const context = alarmContextRef.current;
-    if (context === null || phaseRef.current !== "stopped") {
-      return;
-    }
-
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.type = "square";
-    oscillator.frequency.value = 980;
-    gain.gain.value = 0.0001;
-
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-
-    const startTime = context.currentTime;
-    gain.gain.setValueAtTime(0.0001, startTime);
-    gain.gain.exponentialRampToValueAtTime(0.08, startTime + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.14);
-
-    oscillator.start(startTime);
-    oscillator.stop(startTime + 0.16);
-  };
-
-  beep();
-  alarmTimerRef.current = window.setInterval(beep, 420);
-}
-
-function stopIncidentAlarm(
-  alarmContextRef: MutableRefObject<AudioContext | null>,
-  alarmTimerRef: MutableRefObject<number | null>,
-) {
-  if (alarmTimerRef.current !== null) {
-    window.clearInterval(alarmTimerRef.current);
-    alarmTimerRef.current = null;
-  }
-
-  const context = alarmContextRef.current;
-  if (context !== null && context.state === "running") {
-    void context.suspend();
-  }
-}
-
-async function getOrCreateAudioContext(
-  alarmContextRef: MutableRefObject<AudioContext | null>,
-) {
-  if (alarmContextRef.current !== null) {
-    return alarmContextRef.current;
-  }
-
-  const AudioContextCtor =
-    window.AudioContext ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-
-  if (AudioContextCtor === undefined) {
-    return null;
-  }
-
-  alarmContextRef.current = new AudioContextCtor();
-  return alarmContextRef.current;
-}
-
-function captureLiveFrame(video: HTMLVideoElement | null): string | null {
-  if (video === null || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-    return null;
-  }
-
-  const width = video.videoWidth;
-  const height = video.videoHeight;
-  if (width <= 0 || height <= 0) {
-    return null;
-  }
-
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-
-  const context = canvas.getContext("2d");
-  if (context === null) {
-    return null;
-  }
-
-  context.drawImage(video, 0, 0, width, height);
-  return canvas.toDataURL("image/jpeg", 0.9);
-}
-
-async function captureLiveFrameUntilReady(
-  video: HTMLVideoElement | null,
-  captureTokenRef: MutableRefObject<number>,
-  captureToken: number,
-) {
-  while (captureTokenRef.current === captureToken) {
-    const frame = captureLiveFrame(video);
-    if (frame !== null) {
-      return frame;
-    }
-
-    await wait(60);
-  }
-
-  return null;
-}
-
-function wait(milliseconds: number) {
-  return new Promise<void>((resolve) => {
-    window.setTimeout(resolve, milliseconds);
-  });
-}
-
-function WarehouseMap({ pose }: { pose: MotionPose }) {
-  const lanePoint = toLanePoint(pose);
+  // Zone boundaries (SVG pixels) — derived from warehouse coords
+  // viewBox 0 0 800 600
+  // STORAGE:   x=20..390,  y=20..210   (center: 205, 115)
+  // RECEIVING: x=410..780, y=20..210   (center: 595, 115)
+  // AISLE:     x=20..780,  y=230..300  (center: 400, 265)
+  // OPS:       x=20..190,  y=310..580  (center: 105, 445)
+  // PICKING:   x=210..380, y=310..580  (center: 295, 445)
+  // SHIPPING:  x=410..780, y=310..580  (center: 595, 445)
 
   return (
     <svg
       aria-label="Warehouse layout"
       className="warehouse-map"
       role="img"
-      viewBox="0 0 1000 660"
+      viewBox="0 0 800 600"
       preserveAspectRatio="xMidYMid meet"
     >
-      <rect x="0" y="0" width="1000" height="660" fill="#ffffff" />
+      {/* Background */}
+      <rect x="0" y="0" width="800" height="600" fill="#f8f8f8" />
 
-      <rect x="36" y="36" width="430" height="250" fill="#ffffff" stroke="#111111" strokeWidth="2" />
-      <rect x="496" y="36" width="468" height="220" fill="#ffffff" stroke="#111111" strokeWidth="2" />
-      <rect x="36" y="316" width="928" height="64" fill="#ffffff" stroke="#111111" strokeWidth="2" />
-      <rect x="36" y="410" width="214" height="214" fill="#ffffff" stroke="#111111" strokeWidth="2" />
-      <rect x="262" y="410" width="214" height="214" fill="#ffffff" stroke="#111111" strokeWidth="2" />
-      <rect x="496" y="316" width="468" height="308" fill="#ffffff" stroke="#111111" strokeWidth="2" />
+      {/* ── Zone rectangles ───────────────────────────── */}
+      <rect x="20"  y="20"  width="370" height="190" fill="#ffffff" stroke="#111" strokeWidth="2" />
+      <rect x="410" y="20"  width="370" height="190" fill="#ffffff" stroke="#111" strokeWidth="2" />
+      <rect x="20"  y="230" width="760" height="70"  fill="#f0f0f0" stroke="#111" strokeWidth="2" />
+      <rect x="20"  y="310" width="170" height="270" fill="#ffffff" stroke="#111" strokeWidth="2" />
+      <rect x="210" y="310" width="170" height="270" fill="#eef6ee" stroke="#111" strokeWidth="2" />
+      <rect x="410" y="310" width="370" height="270" fill="#ffffff" stroke="#111" strokeWidth="2" />
 
-      <text x="251" y="96" fill="#111111" fontFamily="Arial, sans-serif" fontSize="18" fontWeight="700" textAnchor="middle">
-        STORAGE
-      </text>
-      <text x="730" y="96" fill="#111111" fontFamily="Arial, sans-serif" fontSize="18" fontWeight="700" textAnchor="middle">
-        RECEIVING
-      </text>
-      <text x="500" y="355" fill="#111111" fontFamily="Arial, sans-serif" fontSize="16" fontWeight="700" textAnchor="middle">
-        AISLE
-      </text>
-      <text x="143" y="534" fill="#111111" fontFamily="Arial, sans-serif" fontSize="16" fontWeight="700" textAnchor="middle">
-        OPS
-      </text>
-      <text x="369" y="534" fill="#111111" fontFamily="Arial, sans-serif" fontSize="16" fontWeight="700" textAnchor="middle">
-        PICKING
-      </text>
-      <text x="730" y="396" fill="#111111" fontFamily="Arial, sans-serif" fontSize="18" fontWeight="700" textAnchor="middle">
-        SHIPPING
-      </text>
+      {/* ── Zone labels ───────────────────────────────── */}
+      <text x="205" y="52"  fill="#111" fontFamily="Arial, sans-serif" fontSize="16" fontWeight="700" textAnchor="middle">STORAGE</text>
+      <text x="595" y="52"  fill="#111" fontFamily="Arial, sans-serif" fontSize="16" fontWeight="700" textAnchor="middle">RECEIVING</text>
+      <text x="80"  y="270" fill="#666" fontFamily="Arial, sans-serif" fontSize="14" fontWeight="700" textAnchor="middle">AISLE</text>
+      <text x="105" y="560" fill="#111" fontFamily="Arial, sans-serif" fontSize="14" fontWeight="700" textAnchor="middle">OPS</text>
+      <text x="295" y="560" fill="#111" fontFamily="Arial, sans-serif" fontSize="14" fontWeight="700" textAnchor="middle">PICKING</text>
+      <text x="595" y="560" fill="#111" fontFamily="Arial, sans-serif" fontSize="14" fontWeight="700" textAnchor="middle">SHIPPING</text>
 
-      <line
-        x1="220"
-        x2="540"
-        y1="348"
-        y2="348"
-        stroke="#111111"
-        strokeDasharray="7 8"
+      {/* ── Storage shelves (3 per row, 2 rows, centered at x=205) ─ */}
+      {/* Each shelf: 80x20, gap 12. Total width: 80*3+12*2 = 264. Start x: 205-132 = 73 */}
+      <g fill="#ffffff" stroke="#111" strokeWidth="1.5">
+        <rect x="73"  y="80"  width="80" height="20" rx="2" />
+        <rect x="165" y="80"  width="80" height="20" rx="2" />
+        <rect x="257" y="80"  width="80" height="20" rx="2" />
+        <rect x="73"  y="112" width="80" height="20" rx="2" />
+        <rect x="165" y="112" width="80" height="20" rx="2" />
+        <rect x="257" y="112" width="80" height="20" rx="2" />
+      </g>
+
+      {/* ── Receiving pallets (4 per row, 2 rows, centered at x=595) ─ */}
+      {/* Each pallet: 40x40, gap 10. Total: 40*4+10*3 = 190. Start x: 595-95 = 500 */}
+      <g fill="#ffffff" stroke="#111" strokeWidth="1.5">
+        <rect x="500" y="70"  width="40" height="40" rx="2" />
+        <rect x="550" y="70"  width="40" height="40" rx="2" />
+        <rect x="600" y="70"  width="40" height="40" rx="2" />
+        <rect x="650" y="70"  width="40" height="40" rx="2" />
+        <rect x="500" y="120" width="40" height="40" rx="2" />
+        <rect x="550" y="120" width="40" height="40" rx="2" />
+        <rect x="600" y="120" width="40" height="40" rx="2" />
+        <rect x="650" y="120" width="40" height="40" rx="2" />
+      </g>
+
+      {/* ── OPS equipment (2 items, centered at x=105) ─────────── */}
+      {/* Items: 50x40 and 40x40, gap 10. Total: 100. Start x: 105-50=55 */}
+      <g fill="#ffffff" stroke="#111" strokeWidth="1.5">
+        <rect x="55"  y="410" width="50" height="40" rx="2" />
+        <rect x="115" y="410" width="40" height="40" rx="2" />
+      </g>
+
+      {/* ── Shipping pallets (4 per row, 2 rows, centered at x=595) */}
+      {/* Same layout as receiving */}
+      <g fill="#ffffff" stroke="#111" strokeWidth="1.5">
+        <rect x="500" y="370" width="40" height="40" rx="2" />
+        <rect x="550" y="370" width="40" height="40" rx="2" />
+        <rect x="600" y="370" width="40" height="40" rx="2" />
+        <rect x="650" y="370" width="40" height="40" rx="2" />
+        <rect x="500" y="420" width="40" height="40" rx="2" />
+        <rect x="550" y="420" width="40" height="40" rx="2" />
+        <rect x="600" y="420" width="40" height="40" rx="2" />
+        <rect x="650" y="420" width="40" height="40" rx="2" />
+      </g>
+
+      {/* ── Planned route (dashed polyline) ───────────────────── */}
+      <polyline
+        points={WAYPOINTS.map(w => `${toSvgX(w.x)},${toSvgY(w.y)}`).join(" ")}
+        fill="none"
+        stroke="#aaa"
         strokeWidth="2"
+        strokeDasharray="8 6"
       />
 
-      <g fill="#ffffff" stroke="#111111" strokeWidth="2">
-        <rect x="100" y="136" width="76" height="26" rx="2" />
-        <rect x="190" y="136" width="76" height="26" rx="2" />
-        <rect x="280" y="136" width="76" height="26" rx="2" />
-        <rect x="370" y="136" width="48" height="26" rx="2" />
-        <rect x="100" y="174" width="76" height="26" rx="2" />
-        <rect x="190" y="174" width="76" height="26" rx="2" />
-        <rect x="280" y="174" width="76" height="26" rx="2" />
-        <rect x="370" y="174" width="48" height="26" rx="2" />
-      </g>
-
-      <g fill="#ffffff" stroke="#111111" strokeWidth="2">
-        <rect x="530" y="92" width="38" height="38" rx="2" />
-        <rect x="582" y="92" width="38" height="38" rx="2" />
-        <rect x="634" y="92" width="38" height="38" rx="2" />
-        <rect x="686" y="92" width="38" height="38" rx="2" />
-      </g>
-
-      <g fill="#ffffff" stroke="#111111" strokeWidth="2">
-        <rect x="530" y="336" width="38" height="38" rx="2" />
-        <rect x="582" y="336" width="38" height="38" rx="2" />
-        <rect x="634" y="336" width="38" height="38" rx="2" />
-      </g>
-
-      <g fill="#ffffff" stroke="#111111" strokeWidth="2">
-        <rect x="82" y="452" width="82" height="52" rx="2" />
-        <rect x="176" y="452" width="38" height="52" rx="2" />
-      </g>
-
-      <g fill="#ffffff" stroke="#111111" strokeWidth="2">
-        <rect x="300" y="448" width="128" height="28" rx="2" />
-      </g>
-
-      <g fill="#ffffff" stroke="#111111" strokeWidth="2">
-        <rect x="540" y="452" width="38" height="38" rx="2" />
-        <rect x="592" y="452" width="38" height="38" rx="2" />
-        <rect x="644" y="452" width="38" height="38" rx="2" />
-        <rect x="696" y="452" width="38" height="38" rx="2" />
-      </g>
-
-      <line
-        x1={lanePoint.x - 10}
-        y1={lanePoint.y}
-        x2={lanePoint.x + 10}
-        y2={lanePoint.y}
-        stroke="#ffffff"
-        strokeWidth="3"
+      {/* ── Obstruction (orange crate in aisle) ───────────────── */}
+      <rect
+        x={ox - 14} y={oy - 14}
+        width="28" height="28"
+        fill="#e67e22" stroke="#c0392b" strokeWidth="2" rx="3"
       />
-      <line
-        x1={lanePoint.x}
-        y1={lanePoint.y - 10}
-        x2={lanePoint.x}
-        y2={lanePoint.y + 10}
-        stroke="#ffffff"
-        strokeWidth="3"
-      />
-      <rect x={lanePoint.x - 11} y={lanePoint.y - 11} width="22" height="22" fill="#111111" stroke="#ffffff" strokeWidth="2" />
+      <text x={ox} y={oy + 5} fill="#fff" fontFamily="Arial, sans-serif" fontSize="12" fontWeight="700" textAnchor="middle">!</text>
+
+      {/* ── Robot marker ──────────────────────────────────────── */}
+      <g>
+        {/* Green dot at start position */}
+        <circle cx={toSvgX(START_POSE.x)} cy={toSvgY(START_POSE.y)} r="5" fill="#2ecc71" opacity="0.5" />
+
+        {/* Robot body */}
+        <rect
+          x={rx - 12} y={ry - 12}
+          width="24" height="24"
+          fill={phase === "incident" ? "#e74c3c" : "#2980b9"}
+          stroke="#fff" strokeWidth="2" rx="4"
+        />
+        <circle cx={rx} cy={ry} r="3" fill="#fff" />
+
+        {/* Label */}
+        <text x={rx} y={ry - 18} fill="#111" fontFamily="Arial, sans-serif" fontSize="10" fontWeight="700" textAnchor="middle">
+          ROBOT
+        </text>
+      </g>
     </svg>
   );
 }
 
-function toLanePoint(pose: MotionPose): { x: number; y: number } {
-  const progress = clamp((pose.x - START_POSE.x) / (STOP_X - START_POSE.x), 0, 1);
-
-  return {
-    x: 220 + progress * 320,
-    y: 348,
-  };
-}
-
 function describeCameraError(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
+  if (error instanceof Error) return error.message;
   return "Camera access was denied.";
-}
-
-function describeError(error: unknown, fallback: string): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return fallback;
-}
-
-function formatClock(clock: number): string {
-  return new Date(clock).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
 }
 
 function clamp(value: number, min: number, max: number): number {

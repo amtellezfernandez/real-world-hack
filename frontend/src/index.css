@@ -123,18 +123,13 @@ h2 {
   display: grid;
   flex: 1;
   min-height: 0;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.2fr) 188px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   gap: 6px;
 }
 
 .workspace-main {
-  display: grid;
-  min-width: 0;
-  min-height: 0;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 6px;
-  flex: 1;
-  grid-column: 1;
+  display: contents;
 }
 
 .card,
@@ -206,7 +201,8 @@ h2 {
   min-height: 0;
   grid-template-columns: 1fr;
   gap: 6px;
-  grid-column: 3;
+  grid-column: 2;
+  grid-row: 2;
 }
 
 .panel {
@@ -215,15 +211,17 @@ h2 {
 }
 
 .panel--compact {
-  align-self: start;
+  align-self: stretch;
 }
 
 .card--camera {
-  grid-row: 1;
+  grid-column: 1;
+  grid-row: 1 / 3;
 }
 
 .card--plan {
-  grid-row: 2;
+  grid-column: 2;
+  grid-row: 1;
 }
 
 .workspace-main .card {
@@ -327,6 +325,15 @@ h2 {
   line-height: 1.35;
 }
 
+.note--alert {
+  color: #c0392b;
+  font-weight: 700;
+}
+
+.incident-title {
+  color: #c0392b;
+}
+
 .analysis-canvas {
   position: absolute;
   width: 0;
@@ -338,13 +345,13 @@ h2 {
 @media (max-width: 1100px) {
   .workspace {
     grid-template-columns: 1fr;
+    grid-template-rows: auto;
   }
 
-  .workspace-main {
-    grid-template-columns: 1fr;
-  }
-
+  .card--camera,
+  .card--plan,
   .rail {
     grid-column: auto;
+    grid-row: auto;
   }
 }
