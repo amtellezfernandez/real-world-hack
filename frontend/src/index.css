@@ -123,13 +123,18 @@ h2 {
   display: grid;
   flex: 1;
   min-height: 0;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.2fr) 188px;
   gap: 6px;
 }
 
 .workspace-main {
-  display: contents;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  flex: 1;
+  grid-column: 1;
 }
 
 .card,
@@ -168,7 +173,7 @@ h2 {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   background: #d9d9d9;
 }
 
@@ -189,6 +194,34 @@ h2 {
   text-align: center;
 }
 
+.detection-overlay {
+  position: absolute;
+  pointer-events: none;
+}
+
+.detection-box {
+  position: absolute;
+  min-width: 36px;
+  min-height: 24px;
+  border: 2px solid #f0c400;
+  background: rgba(240, 196, 0, 0.08);
+}
+
+.detection-box span {
+  position: absolute;
+  left: -2px;
+  top: -22px;
+  max-width: 160px;
+  padding: 2px 4px;
+  border: 1px solid #111111;
+  background: #f0c400;
+  color: #111111;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
 .warehouse-map {
   display: block;
   width: 100%;
@@ -201,8 +234,7 @@ h2 {
   min-height: 0;
   grid-template-columns: 1fr;
   gap: 6px;
-  grid-column: 2;
-  grid-row: 2;
+  grid-column: 3;
 }
 
 .panel {
@@ -211,17 +243,15 @@ h2 {
 }
 
 .panel--compact {
-  align-self: stretch;
+  align-self: start;
 }
 
 .card--camera {
-  grid-column: 1;
-  grid-row: 1 / 3;
+  grid-row: 1;
 }
 
 .card--plan {
-  grid-column: 2;
-  grid-row: 1;
+  grid-row: 2;
 }
 
 .workspace-main .card {
@@ -303,35 +333,20 @@ h2 {
   outline-offset: 2px;
 }
 
-.action-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr);
-  gap: 6px;
-}
-
-.action-button--secondary,
-.action-button--ghost {
-  background: var(--surface);
-  color: var(--text);
-}
-
-.action-button--ghost {
-  margin-top: 2px;
-}
-
 .note {
   color: var(--text-muted);
   font-size: 11px;
   line-height: 1.35;
 }
 
-.note--alert {
-  color: #c0392b;
+.note--blocked {
+  color: #b42318;
   font-weight: 700;
 }
 
-.incident-title {
-  color: #c0392b;
+.note--clear {
+  color: #137333;
+  font-weight: 700;
 }
 
 .analysis-canvas {
@@ -345,13 +360,13 @@ h2 {
 @media (max-width: 1100px) {
   .workspace {
     grid-template-columns: 1fr;
-    grid-template-rows: auto;
   }
 
-  .card--camera,
-  .card--plan,
+  .workspace-main {
+    grid-template-columns: 1fr;
+  }
+
   .rail {
     grid-column: auto;
-    grid-row: auto;
   }
 }

@@ -1,17 +1,20 @@
+from collections.abc import Mapping
 from functools import cache
 from importlib.metadata import version as distribution_version
-from collections.abc import Mapping
 
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from sitewalk.providers.gemini_robotics_er_config import (
+    DEFAULT_GEMINI_OBJECT_DETECTION_MODEL,
     DEFAULT_GEMINI_ROBOTICS_ER_MODEL,
     DEFAULT_GEMINI_ROBOTICS_ER_TIMEOUT_MILLISECONDS,
     GEMINI_API_KEY_ENV,
+    GEMINI_OBJECT_DETECTION_MODEL_ENV,
     GEMINI_ROBOTICS_ER_MODEL_ENV,
     GEMINI_ROBOTICS_ER_THINKING_BUDGET_ENV,
     GEMINI_ROBOTICS_ER_TIMEOUT_MILLISECONDS_ENV,
+    GEMINI_SEMANTIC_STATUS_MODEL_ENV,
 )
 
 
@@ -19,7 +22,7 @@ class Settings(BaseSettings):
     """Runtime settings for the RobotOps Sentinel backend."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(".env", "../.env"),
         env_prefix="SITEWALK_",
         extra="ignore",
     )
@@ -35,6 +38,20 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices(
             GEMINI_ROBOTICS_ER_MODEL_ENV,
             "SITEWALK_GEMINI_ROBOTICS_ER_MODEL",
+        ),
+    )
+    gemini_object_detection_model: str = Field(
+        default=DEFAULT_GEMINI_OBJECT_DETECTION_MODEL,
+        validation_alias=AliasChoices(
+            GEMINI_OBJECT_DETECTION_MODEL_ENV,
+            "SITEWALK_GEMINI_OBJECT_DETECTION_MODEL",
+        ),
+    )
+    gemini_semantic_status_model: str = Field(
+        default=DEFAULT_GEMINI_ROBOTICS_ER_MODEL,
+        validation_alias=AliasChoices(
+            GEMINI_SEMANTIC_STATUS_MODEL_ENV,
+            "SITEWALK_GEMINI_SEMANTIC_STATUS_MODEL",
         ),
     )
     gemini_robotics_er_thinking_budget: int = Field(
@@ -63,7 +80,10 @@ class Settings(BaseSettings):
     )
     encord_ssh_key_file: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("ENCORD_SSH_KEY_FILE", "SITEWALK_ENCORD_SSH_KEY_FILE"),
+        validation_alias=AliasChoices(
+            "ENCORD_SSH_KEY_FILE",
+            "SITEWALK_ENCORD_SSH_KEY_FILE",
+        ),
     )
     encord_project_id: str | None = Field(
         default=None,
@@ -87,10 +107,10 @@ class Settings(BaseSettings):
     cors_origins: list[str] = Field(
         default_factory=lambda: [
             "http://127.0.0.1:5173",
-            "http://127.0.0.1:5175",
+            "http://127.0.0.1:5174",
             "http://127.0.0.1:5177",
             "http://localhost:5173",
-            "http://localhost:5175",
+            "http://localhost:5174",
             "http://localhost:5177",
         ],
     )
@@ -102,7 +122,7 @@ def get_settings() -> Settings:
     return Settings()
 
 
-def build_provider_env(settings: Settings) -> dict[str, str]:
+def build_provider_env(settings: Settings) -> Mapping[str, str]:
     """Return provider-oriented environment values from resolved settings."""
     env: dict[str, str] = {}
 
@@ -116,6 +136,8 @@ def build_provider_env(settings: Settings) -> dict[str, str]:
         ("ENCORD_DOMAIN", settings.encord_domain),
         ("GEMINI_API_KEY", settings.gemini_api_key),
         ("GEMINI_ROBOTICS_ER_MODEL", settings.gemini_robotics_er_model),
+        ("GEMINI_OBJECT_DETECTION_MODEL", settings.gemini_object_detection_model),
+        ("GEMINI_SEMANTIC_STATUS_MODEL", settings.gemini_semantic_status_model),
         (
             "GEMINI_ROBOTICS_ER_THINKING_BUDGET",
             str(settings.gemini_robotics_er_thinking_budget),

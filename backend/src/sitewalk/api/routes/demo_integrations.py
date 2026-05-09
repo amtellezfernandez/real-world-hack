@@ -1,5 +1,6 @@
 import base64
 from binascii import Error as BinasciiError
+from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Literal
@@ -32,6 +33,7 @@ from sitewalk.review_export.encord_ontology import (
 )
 from sitewalk.review_export.incident_packet import (
     EncordIncidentExportPacket,
+    IncidentOutcomeDatasetLabels,
     IncidentOutcomeReport,
     build_demo_replay_encord_packet,
     build_local_outcome_report,
@@ -61,6 +63,9 @@ class LiveIncidentSignalRequest(ContractModel):
     """Live frame payload sent by the browser for the active incident."""
 
     image_data_url: str = Field(min_length=1)
+    blocking_object: str | None = Field(default=None)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    rationale: str | None = Field(default=None)
 
 
 class LiveIncidentSignalResponse(ContractModel):
@@ -174,6 +179,7 @@ async def open_live_incident(
     container: AppContainerDep,
 ) -> LiveIncidentSignalResponse:
     """Store the before frame for the current live incident."""
+    opened_at = datetime.now(UTC).isoformat()
     with container.live_incident_lock:
         object.__setattr__(
             container,
@@ -181,6 +187,22 @@ async def open_live_incident(
             request.image_data_url,
         )
         object.__setattr__(container, "live_incident_after_image_data_url", None)
+        object.__setattr__(
+            container,
+            "live_incident_blocking_object",
+            request.blocking_object,
+        )
+        object.__setattr__(
+            container,
+            "live_incident_blocked_rationale",
+            request.rationale,
+        )
+        object.__setattr__(
+            container,
+            "live_incident_blocked_confidence",
+            request.confidence,
+        )
+        object.__setattr__(container, "live_incident_opened_at", opened_at)
 
     return LiveIncidentSignalResponse(
         status="accepted",
@@ -197,6 +219,10 @@ async def resolve_live_incident(
     """Resolve the live incident and export the stored frames to Encord."""
     with container.live_incident_lock:
         before_image_data_url = container.live_incident_before_image_data_url
+        blocking_object = container.live_incident_blocking_object
+        blocked_rationale = container.live_incident_blocked_rationale
+        blocked_confidence = container.live_incident_blocked_confidence
+        opened_at = container.live_incident_opened_at
         object.__setattr__(
             container,
             "live_incident_after_image_data_url",
@@ -210,18 +236,39 @@ async def resolve_live_incident(
         )
 
     provider_env = build_provider_env(settings)
-    openai_config = build_openai_outcome_config_from_env(env=provider_env)
     packet_without_report = build_demo_replay_encord_packet(
         replay=ASSESSED_BLOCKED_EXIT_REPLAY,
     )
-    outcome_report = await run_in_threadpool(
-        analyze_incident_outcome,
-        config=openai_config,
+    outcome_report = build_live_incident_outcome_report(
         packet=packet_without_report,
+        blocking_object=blocking_object,
+        blocked_rationale=blocked_rationale,
+        blocked_confidence=blocked_confidence,
+        opened_at=opened_at,
+        resolved_at=datetime.now(UTC).isoformat(),
+        clear_rationale=request.rationale,
+        clear_confidence=request.confidence,
     )
     packet = build_demo_replay_encord_packet(
         replay=ASSESSED_BLOCKED_EXIT_REPLAY,
         outcome_report=outcome_report,
+    )
+    packet = packet.model_copy(
+        update={
+            "metadata": {
+                **packet.metadata,
+                "source": "live_webcam",
+                "blocked_state": "blocked",
+                "resolved_state": "not_blocked",
+                "blocking_object": blocking_object or "unknown",
+                "blocked_confidence": format_optional_confidence(blocked_confidence),
+                "clear_confidence": format_optional_confidence(request.confidence),
+                "blocked_rationale": blocked_rationale or "",
+                "clear_rationale": request.rationale or "",
+                "opened_at": opened_at or "",
+                "resolved_at": datetime.now(UTC).isoformat(),
+            },
+        },
     )
     encord_config = build_encord_config_from_env(env=provider_env)
 
@@ -256,6 +303,10 @@ async def resolve_live_incident(
         if result.status == ExportStatus.EXPORTED:
             object.__setattr__(container, "live_incident_before_image_data_url", None)
             object.__setattr__(container, "live_incident_after_image_data_url", None)
+            object.__setattr__(container, "live_incident_blocking_object", None)
+            object.__setattr__(container, "live_incident_blocked_rationale", None)
+            object.__setattr__(container, "live_incident_blocked_confidence", None)
+            object.__setattr__(container, "live_incident_opened_at", None)
 
     if result.status == ExportStatus.EXPORTED:
         return LiveIncidentSignalResponse(
@@ -315,6 +366,59 @@ def write_data_url_image(*, temp_dir: Path, data_url: str, role: str) -> Path:
     output_path = temp_dir / f"{role}{suffix}"
     output_path.write_bytes(decoded)
     return output_path
+
+
+def build_live_incident_outcome_report(
+    *,
+    packet: EncordIncidentExportPacket,
+    blocking_object: str | None,
+    blocked_rationale: str | None,
+    blocked_confidence: float | None,
+    opened_at: str | None,
+    resolved_at: str,
+    clear_rationale: str | None,
+    clear_confidence: float | None,
+) -> IncidentOutcomeReport:
+    """Build the outcome report for the live before/after webcam incident."""
+    before_frame = packet.frames[0]
+    after_frame = packet.frames[-1]
+    blocker = blocking_object or "unknown obstacle"
+    blocked_confidence_text = format_optional_confidence(blocked_confidence)
+    clear_confidence_text = format_optional_confidence(clear_confidence)
+
+    return IncidentOutcomeReport(
+        summary=(
+            "Live webcam incident transitioned from blocked to not blocked. "
+            f"Gemini Robotics-ER reported blocker={blocker} "
+            f"confidence={blocked_confidence_text} at {opened_at or 'unknown time'}; "
+            f"then reported clear confidence={clear_confidence_text} at {resolved_at}. "
+            f"Blocked rationale: {blocked_rationale or 'not provided'} "
+            f"Clear rationale: {clear_rationale or 'not provided'}"
+        ),
+        worked=[
+            "Captured the blocked frame when the robot stopped.",
+            "Captured the not-blocked frame when the path cleared.",
+            "Exported the before/after image pair with this live incident summary.",
+        ],
+        failed_or_risky=[
+            "The live packet uses the demo ontology metadata while the images come from the webcam.",
+        ],
+        recommended_dataset_labels=IncidentOutcomeDatasetLabels(
+            zone_state_before=before_frame.classifications.zone_state,
+            zone_state_after=after_frame.classifications.zone_state,
+            verification_result=after_frame.classifications.verification_result,
+            review_decision=after_frame.classifications.review_decision,
+        ),
+        operator_review_needed=False,
+    )
+
+
+def format_optional_confidence(confidence: float | None) -> str:
+    """Format optional confidence for Encord metadata."""
+    if confidence is None:
+        return "unknown"
+
+    return f"{confidence:.2f}"
 
 
 def analyze_outcome_with_provider_label(

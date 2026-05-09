@@ -4,6 +4,10 @@ from threading import Lock
 
 from sitewalk.contracts import IncidentCommandResponse
 from sitewalk.config import Settings
+from sitewalk.perception.gemini_robotics_er import (
+    GeminiObjectDetectionClient,
+    GeminiSemanticStatusClient,
+)
 
 APPROVAL_IDEMPOTENCY_MAX_ENTRIES = 128
 
@@ -24,4 +28,10 @@ class AppContainer:
     live_incident_lock: Lock = field(default_factory=Lock)
     live_incident_before_image_data_url: str | None = None
     live_incident_after_image_data_url: str | None = None
+    live_incident_blocking_object: str | None = None
+    live_incident_blocked_rationale: str | None = None
+    live_incident_blocked_confidence: float | None = None
+    live_incident_opened_at: str | None = None
     approval_idempotency_max_entries: int = APPROVAL_IDEMPOTENCY_MAX_ENTRIES
+    object_detection_client: GeminiObjectDetectionClient | None = None
+    semantic_status_client: GeminiSemanticStatusClient | None = None

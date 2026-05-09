@@ -17,3 +17,15 @@ export type ObservedState = components["schemas"]["ObservedState"];
 
 /** Evidence-backed observation state from the backend contract. */
 export type Observation = components["schemas"]["Observation"];
+
+/** Incident-relevant object detected in a camera frame. */
+export type GeminiObjectDetection =
+  components["schemas"]["GeminiObjectDetection"];
+
+/** Gemini-backed object detection response from the perception endpoint. */
+export type GeminiObjectDetectionResponse =
+  components["schemas"]["GeminiObjectDetectionResponse"];
+
+/** Gemini-backed semantic path status for a camera frame. */
+export type GeminiSemanticStatusResult =
+  components["schemas"]["GeminiSemanticStatusResult"];
