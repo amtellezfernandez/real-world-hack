@@ -1,33 +1,37 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+type CameraStatus = "starting" | "live" | "blocked";
+type RunPhase = "arming" | "moving" | "closed";
 
 type MotionPose = {
   heading: number;
-  speed: number;
   x: number;
   y: number;
 };
 
-type CameraStatus = "starting" | "live" | "blocked";
-
-type WarehouseZone = {
-  label: string;
-  state: "clear" | "blocked";
+const START_POSE: MotionPose = {
+  heading: 0,
+  x: 26,
+  y: 56,
 };
 
-const initialPose: MotionPose = {
-  heading: 90,
-  speed: 0,
-  x: 24,
-  y: 76,
-};
+const STOP_X = 46;
+const POSE_STEP = 0.1;
 
 function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const poseRef = useRef(START_POSE);
+  const phaseRef = useRef<RunPhase>("arming");
+
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>("starting");
   const [cameraMessage, setCameraMessage] = useState("");
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
-  const [pose, setPose] = useState<MotionPose>(initialPose);
-  const [trail, setTrail] = useState<MotionPose[]>([initialPose]);
+  const [phase, setPhase] = useState<RunPhase>("arming");
+  const [pose, setPose] = useState(START_POSE);
+  const [clock, setClock] = useState(() => Date.now());
+  const [lastAlert, setLastAlert] = useState(
+    "Webcam is live. The obstruction model slot is reserved for later.",
+  );
 
   useEffect(() => {
     let active = true;
@@ -37,7 +41,7 @@ function App() {
       if (!navigator.mediaDevices?.getUserMedia) {
         if (active) {
           setCameraStatus("blocked");
-          setCameraMessage("Camera APIs are unavailable in this browser.");
+          setCameraMessage("Camera access is unavailable in this browser.");
         }
         return;
       }
@@ -46,7 +50,7 @@ function App() {
         stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
           video: {
-            facingMode: { ideal: "user" },
+            facingMode: { ideal: "environment" },
             frameRate: { ideal: 30, max: 30 },
             width: { ideal: 960 },
             height: { ideal: 540 },
@@ -98,169 +102,112 @@ function App() {
     };
 
     void video.play();
-  }, [cameraStream, cameraStatus]);
+  }, [cameraStream]);
 
   useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      const step = event.shiftKey ? 4 : 2;
-      let nextPose: MotionPose | null = null;
+    phaseRef.current = phase;
+  }, [phase]);
 
-      switch (event.key) {
-        case "ArrowUp":
-        case "w":
-        case "W":
-          nextPose = movePose(pose, 0, -step, 0);
-          break;
-        case "ArrowDown":
-        case "s":
-        case "S":
-          nextPose = movePose(pose, 0, step, 180);
-          break;
-        case "ArrowLeft":
-        case "a":
-        case "A":
-          nextPose = movePose(pose, -step, 0, 270);
-          break;
-        case "ArrowRight":
-        case "d":
-        case "D":
-          nextPose = movePose(pose, step, 0, 90);
-          break;
-        case "q":
-        case "Q":
-          nextPose = {
-            ...pose,
-            heading: wrapHeading(pose.heading - 15),
-            speed: 0,
-          };
-          break;
-        case "e":
-        case "E":
-          nextPose = {
-            ...pose,
-            heading: wrapHeading(pose.heading + 15),
-            speed: 0,
-          };
-          break;
-        case "r":
-        case "R":
-          nextPose = initialPose;
-          break;
-      }
+  useEffect(() => {
+    poseRef.current = pose;
+  }, [pose]);
 
-      if (nextPose === null) {
+  useEffect(() => {
+    const clockTimer = window.setInterval(() => {
+      setClock(Date.now());
+    }, 500);
+
+    return () => window.clearInterval(clockTimer);
+  }, []);
+
+  useEffect(() => {
+    if (cameraStatus !== "live" || phase !== "arming") {
+      return;
+    }
+
+    const armTimer = window.setTimeout(() => {
+      if (phaseRef.current !== "arming") {
         return;
       }
 
-      event.preventDefault();
+      phaseRef.current = "moving";
+      setPhase("moving");
+      setLastAlert("Lane armed. Motion engaged.");
+    }, 700);
+
+    return () => window.clearTimeout(armTimer);
+  }, [cameraStatus, phase]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      if (phaseRef.current !== "moving") {
+        return;
+      }
+
+      const current = poseRef.current;
+      const nextX = Math.min(current.x + POSE_STEP, STOP_X);
+      const nextPose: MotionPose = {
+        heading: 0,
+        x: nextX,
+        y: current.y,
+      };
+
+      poseRef.current = nextPose;
       setPose(nextPose);
-      setTrail((previous) => [...previous.slice(-8), nextPose]);
-    }
 
-    window.addEventListener("keydown", handleKeyDown);
+      if (nextX >= STOP_X) {
+        phaseRef.current = "closed";
+        setPhase("closed");
+        setLastAlert("Lane traversal finished.");
+      }
+    }, 180);
 
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [pose]);
+    return () => window.clearInterval(interval);
+  }, []);
 
-  const zone = classifyWarehouseZone(pose);
+  const progress = useMemo(() => {
+    const range = STOP_X - START_POSE.x;
+    return clamp((pose.x - START_POSE.x) / range, 0, 1);
+  }, [pose.x]);
 
-  function centerRuntime() {
-    setPose(initialPose);
-    setTrail([initialPose]);
-  }
+  const laneState = "model pending";
+  const motionState =
+    phase === "arming" ? "arming" : phase === "moving" ? "moving" : "closed";
 
-  function dockRuntime() {
-    const dockedPose: MotionPose = {
-      heading: 90,
-      speed: 0,
-      x: 74,
-      y: 22,
-    };
-
-    setPose(dockedPose);
-    setTrail((previous) => [...previous.slice(-8), dockedPose]);
-  }
-
-  function parkRuntime() {
-    const parkedPose: MotionPose = {
-      heading: 180,
-      speed: 0,
-      x: 48,
-      y: 74,
-    };
-
-    setPose(parkedPose);
-    setTrail((previous) => [...previous.slice(-8), parkedPose]);
+  function resetRun() {
+    phaseRef.current = cameraStatus === "live" ? "moving" : "arming";
+    poseRef.current = START_POSE;
+    setPhase(cameraStatus === "live" ? "moving" : "arming");
+    setPose(START_POSE);
+    setLastAlert("Run reset. Obstruction model slot remains open.");
   }
 
   return (
-    <main className="operations-shell">
-      <header className="topbar">
-        <div className="brand-block">
+    <main className="shell">
+      <header className="header">
+        <div className="title-block">
           <p className="eyebrow">Runtime</p>
-          <h1>Laptop runtime</h1>
-          <p className="subhead">Webcam feed and odometry on a warehouse plan</p>
+          <h1>Warehouse incident console</h1>
+          <p className="subhead">Left: camera evidence. Center: aisle plan. Right: incident state.</p>
         </div>
-        <div className="status-strip">
-          <span className="status-pill">
-            Webcam{" "}
-            {cameraStatus === "live"
-              ? "live"
-              : cameraStatus === "starting"
-                ? "starting"
-                : "blocked"}
-          </span>
-          <span className="status-pill">
-            Odometry {pose.x.toFixed(1)} / {pose.y.toFixed(1)}
-          </span>
-          <span className="status-pill">{zone.label}</span>
+        <div className="header-status">
+          <span className="status-pill">Camera {cameraStatus === "live" ? "live" : cameraStatus}</span>
+          <span className="status-pill">Motion {motionState}</span>
+          <span className="status-pill">Run {Math.round(progress * 100)}%</span>
         </div>
       </header>
 
-      <section className="signal-strip" aria-label="Signal flow">
-        <span className="flow-node">
-          <span className="flow-node-label">Webcam</span>
-          <span className="flow-node-value">
-            {cameraStatus === "live"
-              ? "Live"
-              : cameraStatus === "starting"
-                ? "Starting"
-                : "Blocked"}
-          </span>
-        </span>
-        <span className="flow-line" />
-        <span className="flow-node">
-          <span className="flow-node-label">Odometry</span>
-          <span className="flow-node-value">
-            {pose.x.toFixed(1)} / {pose.y.toFixed(1)}
-          </span>
-        </span>
-        <span className="flow-line" />
-        <span className="flow-node">
-          <span className="flow-node-label">Floor plan</span>
-          <span className="flow-node-value">{zone.state === "blocked" ? "Blocked" : "Clear"}</span>
-        </span>
-      </section>
-
-      <section className="workspace" aria-label="Laptop runtime workspace">
+      <section className="workspace" aria-label="Warehouse automation demo workspace">
         <section className="workspace-main">
-          <section className="camera-panel">
-            <div className="panel-head">
-              <p className="eyebrow">Webcam</p>
-              <div className="panel-meta">
-                <span>
-                  {cameraStatus === "live"
-                    ? "Active"
-                    : cameraStatus === "starting"
-                      ? "Starting"
-                      : "Unavailable"}
-                </span>
-                <span>Source laptop</span>
+          <section className="card card--camera">
+            <div className="card-head">
+              <div>
+                <p className="eyebrow">1. Camera</p>
+                <h2>Live evidence</h2>
               </div>
+              <span className="card-note">Webcam feed</span>
             </div>
-            <div className="camera-frame camera-frame--live">
+            <div className="camera-frame">
               <video
                 ref={videoRef}
                 className="camera-feed"
@@ -269,54 +216,37 @@ function App() {
                 muted
               />
               {cameraStatus !== "live" ? (
-                <div className="camera-fallback">
-                  <strong>Camera feed unavailable</strong>
-                  <span>{cameraMessage || "Awaiting camera permission."}</span>
+                <div className="camera-overlay">
+                  <p>{cameraMessage || "Awaiting camera permission."}</p>
                 </div>
               ) : null}
             </div>
           </section>
-
-          <section className="map-panel">
-            <div className="panel-head">
-              <p className="eyebrow">Warehouse plan</p>
-              <div className="panel-meta">
-                <span>{zone.state === "blocked" ? "Blocked" : "Clear"}</span>
-                <span>{zone.label}</span>
+          <section className="card card--plan">
+            <div className="card-head">
+              <div>
+                <p className="eyebrow">2. Plan</p>
+                <h2>Straight aisle</h2>
               </div>
+              <span className="card-note">Scripted motion</span>
             </div>
-            <WarehouseMap pose={pose} trail={trail} zone={zone} />
+            <WarehouseMap pose={pose} />
           </section>
         </section>
 
-        <aside className="incident-rail" aria-label="Runtime telemetry">
-          <section className="panel-section">
-            <p className="eyebrow">Telemetry</p>
-            <h2>Live motion</h2>
-            <div className="metric-list">
-              <MetricRow label="Webcam" value={cameraStatus === "live" ? "Live" : cameraStatus === "starting" ? "Starting" : "Unavailable"} />
-              <MetricRow label="Odometry" value={`${pose.x.toFixed(1)} / ${pose.y.toFixed(1)} @ ${pose.heading}°`} />
-              <MetricRow label="Zone" value={zone.label} />
-              <MetricRow label="X" value={`${pose.x.toFixed(1)}%`} />
-              <MetricRow label="Y" value={`${pose.y.toFixed(1)}%`} />
-              <MetricRow label="Heading" value={`${pose.heading}°`} />
-              <MetricRow label="Speed" value={`${pose.speed.toFixed(1)} m/s`} />
+        <aside className="rail" aria-label="Incident rail">
+          <section className="panel panel--compact">
+            <p className="eyebrow">3. Incident</p>
+            <h2>{motionState}</h2>
+            <div className="metric-list metric-list--compact">
+              <MetricRow label="Vision" value="model pending" />
+              <MetricRow label="Heading" value={`${pose.heading.toFixed(0)}°`} />
+              <MetricRow label="Progress" value={`${Math.round(progress * 100)}%`} />
             </div>
-          </section>
-
-          <section className="panel-section">
-            <p className="eyebrow">Commands</p>
-            <div className="action-grid">
-              <button className="action-button" onClick={centerRuntime} type="button">
-                Center
-              </button>
-              <button className="action-button" onClick={dockRuntime} type="button">
-                Dock
-              </button>
-              <button className="action-button" onClick={parkRuntime} type="button">
-                Park
-              </button>
-            </div>
+            <button className="action-button" onClick={resetRun} type="button">
+              Reset run
+            </button>
+            <p className="note">{lastAlert}</p>
           </section>
         </aside>
       </section>
@@ -333,174 +263,123 @@ function MetricRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function WarehouseMap({
-  pose,
-  trail,
-  zone,
-}: {
-  pose: MotionPose;
-  trail: MotionPose[];
-  zone: WarehouseZone;
-}) {
-  const markerPoint = toMapPoint(pose);
-  const trailPoints = trail
-    .map((item) => {
-      const point = toMapPoint(item);
-      return `${point.x},${point.y}`;
-    })
-    .join(" ");
+function WarehouseMap({ pose }: { pose: MotionPose }) {
+  const lanePoint = toLanePoint(pose);
 
   return (
     <svg
       aria-label="Warehouse layout"
       className="warehouse-map"
       role="img"
-      viewBox="0 0 1000 640"
+      viewBox="0 0 1000 660"
       preserveAspectRatio="xMidYMid meet"
     >
-      <rect x="0" y="0" width="1000" height="640" fill="#ffffff" />
-      <rect x="56" y="40" width="888" height="560" fill="#ffffff" stroke="#111111" strokeWidth="3" />
-      <rect x="56" y="40" width="420" height="380" fill="#f8f8f8" stroke="#111111" strokeWidth="3" />
-      <rect x="476" y="40" width="468" height="200" fill="#fcfcfc" stroke="#111111" strokeWidth="3" />
-      <rect x="476" y="240" width="468" height="190" fill="#fcfcfc" stroke="#111111" strokeWidth="3" />
-      <rect x="476" y="430" width="468" height="170" fill="#f8f8f8" stroke="#111111" strokeWidth="3" />
-      <rect x="56" y="420" width="228" height="180" fill="#fafafa" stroke="#111111" strokeWidth="3" />
-      <rect x="284" y="420" width="192" height="180" fill="#f8f8f8" stroke="#111111" strokeWidth="3" />
+      <rect x="0" y="0" width="1000" height="660" fill="#ffffff" />
 
-      <text x="266" y="88" fill="#111111" fontFamily="Arial, sans-serif" fontSize="22" fontWeight="700" textAnchor="middle">
+      <rect x="36" y="36" width="430" height="250" fill="#ffffff" stroke="#111111" strokeWidth="2" />
+      <rect x="496" y="36" width="468" height="220" fill="#ffffff" stroke="#111111" strokeWidth="2" />
+      <rect x="36" y="316" width="928" height="64" fill="#ffffff" stroke="#111111" strokeWidth="2" />
+      <rect x="36" y="410" width="214" height="214" fill="#ffffff" stroke="#111111" strokeWidth="2" />
+      <rect x="262" y="410" width="214" height="214" fill="#ffffff" stroke="#111111" strokeWidth="2" />
+      <rect x="496" y="316" width="468" height="308" fill="#ffffff" stroke="#111111" strokeWidth="2" />
+
+      <text x="251" y="96" fill="#111111" fontFamily="Arial, sans-serif" fontSize="18" fontWeight="700" textAnchor="middle">
         STORAGE
       </text>
-      <text x="710" y="88" fill="#111111" fontFamily="Arial, sans-serif" fontSize="22" fontWeight="700" textAnchor="middle">
+      <text x="730" y="96" fill="#111111" fontFamily="Arial, sans-serif" fontSize="18" fontWeight="700" textAnchor="middle">
         RECEIVING
       </text>
-      <text x="710" y="286" fill="#111111" fontFamily="Arial, sans-serif" fontSize="22" fontWeight="700" textAnchor="middle">
-        SHIPPING
+      <text x="500" y="355" fill="#111111" fontFamily="Arial, sans-serif" fontSize="16" fontWeight="700" textAnchor="middle">
+        AISLE
       </text>
-      <text x="380" y="516" fill="#111111" fontFamily="Arial, sans-serif" fontSize="20" fontWeight="700" textAnchor="middle">
-        PICKING
-      </text>
-      <text x="170" y="514" fill="#111111" fontFamily="Arial, sans-serif" fontSize="18" fontWeight="700" textAnchor="middle">
+      <text x="143" y="534" fill="#111111" fontFamily="Arial, sans-serif" fontSize="16" fontWeight="700" textAnchor="middle">
         OPS
       </text>
+      <text x="369" y="534" fill="#111111" fontFamily="Arial, sans-serif" fontSize="16" fontWeight="700" textAnchor="middle">
+        PICKING
+      </text>
+      <text x="730" y="396" fill="#111111" fontFamily="Arial, sans-serif" fontSize="18" fontWeight="700" textAnchor="middle">
+        SHIPPING
+      </text>
 
-      <g fill="#ffffff" stroke="#111111" strokeWidth="2">
-        <rect x="110" y="112" width="86" height="28" rx="3" />
-        <rect x="208" y="112" width="86" height="28" rx="3" />
-        <rect x="306" y="112" width="86" height="28" rx="3" />
-        <rect x="110" y="158" width="86" height="28" rx="3" />
-        <rect x="208" y="158" width="86" height="28" rx="3" />
-        <rect x="306" y="158" width="86" height="28" rx="3" />
-        <rect x="110" y="204" width="86" height="28" rx="3" />
-        <rect x="208" y="204" width="86" height="28" rx="3" />
-        <rect x="306" y="204" width="86" height="28" rx="3" />
-        <rect x="110" y="250" width="86" height="28" rx="3" />
-        <rect x="208" y="250" width="86" height="28" rx="3" />
-        <rect x="306" y="250" width="86" height="28" rx="3" />
-      </g>
-
-      <g fill="#ffffff" stroke="#111111" strokeWidth="2">
-        <rect x="516" y="114" width="38" height="38" rx="3" />
-        <rect x="564" y="114" width="38" height="38" rx="3" />
-        <rect x="612" y="114" width="38" height="38" rx="3" />
-        <rect x="660" y="114" width="38" height="38" rx="3" />
-        <rect x="708" y="114" width="38" height="38" rx="3" />
-        <rect x="756" y="114" width="38" height="38" rx="3" />
-        <rect x="804" y="114" width="38" height="38" rx="3" />
-        <rect x="852" y="114" width="38" height="38" rx="3" />
-      </g>
-
-      <g fill="#ffffff" stroke="#111111" strokeWidth="2">
-        <rect x="516" y="266" width="38" height="38" rx="3" />
-        <rect x="564" y="266" width="38" height="38" rx="3" />
-        <rect x="612" y="266" width="38" height="38" rx="3" />
-        <rect x="660" y="266" width="38" height="38" rx="3" />
-      </g>
-
-      <g fill="#ffffff" stroke="#111111" strokeWidth="2">
-        <rect x="516" y="474" width="36" height="36" rx="3" />
-        <rect x="564" y="474" width="36" height="36" rx="3" />
-        <rect x="612" y="474" width="36" height="36" rx="3" />
-        <rect x="660" y="474" width="36" height="36" rx="3" />
-      </g>
-
-      <g fill="#ffffff" stroke="#111111" strokeWidth="2">
-        <rect x="108" y="484" width="84" height="58" rx="4" />
-        <rect x="206" y="484" width="54" height="58" rx="4" />
-      </g>
-
-      <g fill="none" stroke="#111111" strokeWidth="2">
-        <polyline points={trailPoints} />
-      </g>
-
-      <rect
-        x={markerPoint.x - 9}
-        y={markerPoint.y - 9}
-        width="18"
-        height="18"
-        fill={zone.state === "blocked" ? "#111111" : "#ffffff"}
+      <line
+        x1="220"
+        x2="540"
+        y1="348"
+        y2="348"
         stroke="#111111"
+        strokeDasharray="7 8"
+        strokeWidth="2"
+      />
+
+      <g fill="#ffffff" stroke="#111111" strokeWidth="2">
+        <rect x="100" y="136" width="76" height="26" rx="2" />
+        <rect x="190" y="136" width="76" height="26" rx="2" />
+        <rect x="280" y="136" width="76" height="26" rx="2" />
+        <rect x="370" y="136" width="48" height="26" rx="2" />
+        <rect x="100" y="174" width="76" height="26" rx="2" />
+        <rect x="190" y="174" width="76" height="26" rx="2" />
+        <rect x="280" y="174" width="76" height="26" rx="2" />
+        <rect x="370" y="174" width="48" height="26" rx="2" />
+      </g>
+
+      <g fill="#ffffff" stroke="#111111" strokeWidth="2">
+        <rect x="530" y="92" width="38" height="38" rx="2" />
+        <rect x="582" y="92" width="38" height="38" rx="2" />
+        <rect x="634" y="92" width="38" height="38" rx="2" />
+        <rect x="686" y="92" width="38" height="38" rx="2" />
+      </g>
+
+      <g fill="#ffffff" stroke="#111111" strokeWidth="2">
+        <rect x="530" y="336" width="38" height="38" rx="2" />
+        <rect x="582" y="336" width="38" height="38" rx="2" />
+        <rect x="634" y="336" width="38" height="38" rx="2" />
+      </g>
+
+      <g fill="#ffffff" stroke="#111111" strokeWidth="2">
+        <rect x="82" y="452" width="82" height="52" rx="2" />
+        <rect x="176" y="452" width="38" height="52" rx="2" />
+      </g>
+
+      <g fill="#ffffff" stroke="#111111" strokeWidth="2">
+        <rect x="300" y="448" width="128" height="28" rx="2" />
+      </g>
+
+      <g fill="#ffffff" stroke="#111111" strokeWidth="2">
+        <rect x="540" y="452" width="38" height="38" rx="2" />
+        <rect x="592" y="452" width="38" height="38" rx="2" />
+        <rect x="644" y="452" width="38" height="38" rx="2" />
+        <rect x="696" y="452" width="38" height="38" rx="2" />
+      </g>
+
+      <line
+        x1={lanePoint.x - 10}
+        y1={lanePoint.y}
+        x2={lanePoint.x + 10}
+        y2={lanePoint.y}
+        stroke="#ffffff"
         strokeWidth="3"
       />
+      <line
+        x1={lanePoint.x}
+        y1={lanePoint.y - 10}
+        x2={lanePoint.x}
+        y2={lanePoint.y + 10}
+        stroke="#ffffff"
+        strokeWidth="3"
+      />
+      <rect x={lanePoint.x - 11} y={lanePoint.y - 11} width="22" height="22" fill="#111111" stroke="#ffffff" strokeWidth="2" />
     </svg>
   );
 }
 
-function classifyWarehouseZone(pose: MotionPose): WarehouseZone {
-  if (pose.x >= 66 && pose.y <= 34) {
-    return { label: "Receiving dock", state: "blocked" };
-  }
+function toLanePoint(pose: MotionPose): { x: number; y: number } {
+  const progress = clamp((pose.x - START_POSE.x) / (STOP_X - START_POSE.x), 0, 1);
 
-  if (pose.x < 38 && pose.y < 58) {
-    return { label: "Storage", state: "clear" };
-  }
-
-  if (pose.x >= 38 && pose.x < 62 && pose.y >= 58) {
-    return { label: "Picking", state: "clear" };
-  }
-
-  if (pose.x >= 38 && pose.x < 62 && pose.y < 58) {
-    return { label: "Aisle", state: "clear" };
-  }
-
-  if (pose.x >= 62 && pose.y < 50) {
-    return { label: "Receiving", state: "clear" };
-  }
-
-  if (pose.x >= 62 && pose.y >= 50) {
-    return { label: "Shipping", state: "clear" };
-  }
-
-  return { label: "Ops", state: "clear" };
-}
-
-function movePose(
-  pose: MotionPose,
-  deltaX: number,
-  deltaY: number,
-  heading: number,
-): MotionPose {
   return {
-    heading,
-    speed: Math.sqrt(deltaX ** 2 + deltaY ** 2) * 0.12,
-    x: clamp(pose.x + deltaX, 4, 96),
-    y: clamp(pose.y + deltaY, 4, 96),
+    x: 220 + progress * 320,
+    y: 348,
   };
-}
-
-function toMapPoint(pose: MotionPose): { x: number; y: number } {
-  return {
-    x: 56 + (pose.x / 100) * 888,
-    y: 40 + (pose.y / 100) * 560,
-  };
-}
-
-function wrapHeading(value: number): number {
-  const normalized = value % 360;
-  return normalized < 0 ? normalized + 360 : normalized;
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
 }
 
 function describeCameraError(error: unknown): string {
@@ -509,6 +388,18 @@ function describeCameraError(error: unknown): string {
   }
 
   return "Camera access was denied.";
+}
+
+function formatClock(clock: number): string {
+  return new Date(clock).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
 }
 
 export default App;
