@@ -376,36 +376,49 @@ async function exportIncidentToEncord(
   setStatus: (status: EncordExportStatus) => void,
   setMessage: (message: string) => void,
 ) {
-  try {
-    const response = await fetch(ENCORD_EXPORT_ENDPOINT, {
-      body: JSON.stringify({
-        before_image_data_url: beforeImageDataUrl,
-        after_image_data_url: afterImageDataUrl,
-        include_openai_report: true,
-      }),
-      headers: {
-        "Content-Type": "application/json",
-      },
-      method: "POST",
-    });
+  const attempts = 5;
 
-    if (!response.ok) {
-      throw new Error(`Export request failed with status ${response.status}`);
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const response = await fetch(ENCORD_EXPORT_ENDPOINT, {
+        body: JSON.stringify({
+          before_image_data_url: beforeImageDataUrl,
+          after_image_data_url: afterImageDataUrl,
+          include_openai_report: true,
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error(`Export request failed with status ${response.status}`);
+      }
+
+      const payload: { status?: string; detail?: string } = await response.json();
+      if (payload.status === "exported") {
+        setStatus("exported");
+        setMessage(payload.detail ?? "Live incident exported to Encord.");
+        return;
+      }
+
+      setMessage(
+        `${payload.detail ?? "Encord export not ready."} Attempt ${attempt}/${attempts}.`,
+      );
+    } catch (error: unknown) {
+      setMessage(
+        `${describeError(error, "Encord export failed.")} Attempt ${attempt}/${attempts}.`,
+      );
     }
 
-    const payload: { status?: string; detail?: string } = await response.json();
-    if (payload.status !== "exported") {
-      setStatus("failed");
-      setMessage(payload.detail ?? "Encord export failed.");
-      return;
+    if (attempt < attempts) {
+      await wait(300 * attempt);
     }
-
-    setStatus("exported");
-    setMessage(payload.detail ?? "Live incident exported to Encord.");
-  } catch (error: unknown) {
-    setStatus("failed");
-    setMessage(describeError(error, "Encord export failed."));
   }
+
+  setStatus("failed");
+  setMessage("Encord export failed after retries.");
 }
 
 async function startIncidentAlarm(
