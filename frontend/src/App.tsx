@@ -265,7 +265,7 @@ function App() {
     const beforeFrame = beforeFrameRef.current;
     if (beforeFrame !== null) {
       setEncordMessage("Sending live incident evidence to Encord.");
-      void exportIncidentToEncord(
+      await exportIncidentToEncord(
         beforeFrame,
         capturedAfter,
         setEncordStatus,
@@ -400,6 +400,12 @@ async function exportIncidentToEncord(
       if (payload.status === "exported") {
         setStatus("exported");
         setMessage(payload.detail ?? "Live incident exported to Encord.");
+        return;
+      }
+
+      if (payload.status === "export_unavailable") {
+        setStatus("failed");
+        setMessage(`Encord export unavailable: ${payload.detail ?? "unknown reason"}`);
         return;
       }
 
