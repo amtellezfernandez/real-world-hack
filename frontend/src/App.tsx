@@ -9,7 +9,7 @@ type MotionPose = {
   y: number;
 };
 
-type EncordExportStatus = "idle" | "sending" | "blocked" | "exported" | "failed";
+type EncordExportStatus = "idle" | "sending" | "exported" | "failed";
 
 const START_POSE: MotionPose = {
   heading: 0,
@@ -28,6 +28,7 @@ function App() {
   const phaseRef = useRef<RunPhase>("arming");
   const alarmContextRef = useRef<AudioContext | null>(null);
   const alarmTimerRef = useRef<number | null>(null);
+  const captureTokenRef = useRef(0);
 
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>("starting");
   const [cameraMessage, setCameraMessage] = useState("");
@@ -197,6 +198,7 @@ function App() {
   const incidentState = phase === "stopped" ? "open" : "clear";
 
   function resetRun() {
+    captureTokenRef.current += 1;
     stopIncidentAlarm(alarmContextRef, alarmTimerRef);
     phaseRef.current = cameraStatus === "live" ? "moving" : "arming";
     poseRef.current = START_POSE;
@@ -214,11 +216,16 @@ function App() {
       return;
     }
 
-    const capturedBefore = await captureLiveFrameWithRetry(videoRef.current);
+    captureTokenRef.current += 1;
+    const captureToken = captureTokenRef.current;
+    setEncordStatus("sending");
+    setEncordMessage("Capturing the live before frame for Encord.");
+    const capturedBefore = await captureLiveFrameUntilReady(
+      videoRef.current,
+      captureTokenRef,
+      captureToken,
+    );
     if (capturedBefore === null) {
-      setEncordStatus("blocked");
-      setEncordMessage("Live camera frame was blocked. Retry when the feed is stable.");
-      setLastAlert("Incident open blocked. Camera frame was not ready.");
       return;
     }
 
@@ -227,7 +234,6 @@ function App() {
     phaseRef.current = "stopped";
     setPhase("stopped");
     void startIncidentAlarm(alarmContextRef, alarmTimerRef, phaseRef);
-    setEncordStatus("blocked");
     setEncordMessage("Before frame captured. Resolve the incident to export to Encord.");
     setLastAlert("Incident open. Motion paused.");
   }
@@ -237,11 +243,16 @@ function App() {
       return;
     }
 
-    const capturedAfter = await captureLiveFrameWithRetry(videoRef.current);
+    captureTokenRef.current += 1;
+    const captureToken = captureTokenRef.current;
+    setEncordStatus("sending");
+    setEncordMessage("Capturing the live after frame and exporting to Encord.");
+    const capturedAfter = await captureLiveFrameUntilReady(
+      videoRef.current,
+      captureTokenRef,
+      captureToken,
+    );
     if (capturedAfter === null) {
-      setEncordStatus("blocked");
-      setEncordMessage("Live camera frame was blocked. Export waits for a stable frame.");
-      setLastAlert("Incident resolve blocked. Camera frame was not ready.");
       return;
     }
 
@@ -253,7 +264,6 @@ function App() {
 
     const beforeFrame = beforeFrameRef.current;
     if (beforeFrame !== null) {
-      setEncordStatus("sending");
       setEncordMessage("Sending live incident evidence to Encord.");
       void exportIncidentToEncord(
         beforeFrame,
@@ -262,8 +272,8 @@ function App() {
         setEncordMessage,
       );
     } else {
-      setEncordStatus("blocked");
-      setEncordMessage("No before frame was captured. Export is blocked until the incident opens cleanly.");
+      setEncordStatus("failed");
+      setEncordMessage("No before frame was captured. Resolve and reopen the incident.");
     }
   }
 
@@ -385,12 +395,6 @@ async function exportIncidentToEncord(
 
     const payload: { status?: string; detail?: string } = await response.json();
     if (payload.status !== "exported") {
-      if (payload.status === "export_unavailable") {
-        setStatus("blocked");
-        setMessage(payload.detail ?? "Encord export is blocked until the frame evidence is ready.");
-        return;
-      }
-
       setStatus("failed");
       setMessage(payload.detail ?? "Encord export failed.");
       return;
@@ -505,18 +509,18 @@ function captureLiveFrame(video: HTMLVideoElement | null): string | null {
   return canvas.toDataURL("image/jpeg", 0.9);
 }
 
-async function captureLiveFrameWithRetry(
+async function captureLiveFrameUntilReady(
   video: HTMLVideoElement | null,
-  attempts = 10,
-  delayMs = 60,
+  captureTokenRef: MutableRefObject<number>,
+  captureToken: number,
 ) {
-  for (let index = 0; index < attempts; index += 1) {
+  while (captureTokenRef.current === captureToken) {
     const frame = captureLiveFrame(video);
     if (frame !== null) {
       return frame;
     }
 
-    await wait(delayMs);
+    await wait(60);
   }
 
   return null;
