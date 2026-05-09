@@ -76,22 +76,22 @@ async def test_health_reports_backend_ready() -> None:
     assert health.version == "0.1.0"
 
 
-async def test_cors_allows_current_frontend_port() -> None:
+async def test_cors_allows_localhost_dev_ports_by_regex() -> None:
     async with LifespanManager(app):
         async with AsyncClient(
             transport=ASGITransport(app=app),
             base_url="http://testserver",
-            headers={"Origin": "http://127.0.0.1:5177"},
+            headers={"Origin": "http://127.0.0.1:5179"},
         ) as client:
             response = await client.options(
                 "/health",
                 headers={
-                    "Origin": "http://127.0.0.1:5177",
+                    "Origin": "http://127.0.0.1:5179",
                     "Access-Control-Request-Method": "GET",
                 },
             )
 
-    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5177"
+    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5179"
 
 
 async def test_product_contract_exposes_incident_and_observation_concepts() -> None:

@@ -94,6 +94,7 @@ class Settings(BaseSettings):
             "http://localhost:5177",
         ],
     )
+    cors_origin_regex: str = r"^https?://(127\.0\.0\.1|localhost)(:\d+)?$"
 
 
 @cache
