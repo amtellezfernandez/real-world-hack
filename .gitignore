@@ -20,8 +20,7 @@ dist-ssr/
 # Local environment
 .env
 .env.*
-.env.example
-
+!.env.example
 encord-airw_hack-private-key.ed25519
 *.ed25519
 
