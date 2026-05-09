@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 
 type CameraStatus = "starting" | "live" | "blocked";
 type RunPhase = "arming" | "moving" | "stopped" | "closed";
@@ -19,14 +19,15 @@ const START_POSE: MotionPose = {
 
 const STOP_X = 46;
 const POSE_STEP = 0.1;
-const BACKEND_BASE_URL =
-  import.meta.env.VITE_BACKEND_URL ?? "http://127.0.0.1:8000";
-const ENCORD_EXPORT_ENDPOINT = `${BACKEND_BASE_URL}/api/demo-replay/export/encord`;
+const ENCORD_EXPORT_ENDPOINT =
+  import.meta.env.VITE_ENCORD_EXPORT_ENDPOINT ?? "/api/demo-replay/export/encord";
 
 function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const poseRef = useRef(START_POSE);
   const phaseRef = useRef<RunPhase>("arming");
+  const alarmContextRef = useRef<AudioContext | null>(null);
+  const alarmTimerRef = useRef<number | null>(null);
 
   const [cameraStatus, setCameraStatus] = useState<CameraStatus>("starting");
   const [cameraMessage, setCameraMessage] = useState("");
@@ -122,6 +123,12 @@ function App() {
   }, [pose]);
 
   useEffect(() => {
+    return () => {
+      stopIncidentAlarm(alarmContextRef, alarmTimerRef);
+    };
+  }, []);
+
+  useEffect(() => {
     const clockTimer = window.setInterval(() => {
       setClock(Date.now());
     }, 500);
@@ -190,6 +197,7 @@ function App() {
   const incidentState = phase === "stopped" ? "open" : "clear";
 
   function resetRun() {
+    stopIncidentAlarm(alarmContextRef, alarmTimerRef);
     phaseRef.current = cameraStatus === "live" ? "moving" : "arming";
     poseRef.current = START_POSE;
     beforeFrameRef.current = null;
@@ -216,6 +224,7 @@ function App() {
     afterFrameRef.current = null;
     phaseRef.current = "stopped";
     setPhase("stopped");
+    void startIncidentAlarm(alarmContextRef, alarmTimerRef, phaseRef);
     setEncordStatus("idle");
     setEncordMessage("Before frame captured. Resolve the incident to export to Encord.");
     setLastAlert("Incident open. Motion paused.");
@@ -235,6 +244,7 @@ function App() {
     afterFrameRef.current = capturedAfter;
     phaseRef.current = "moving";
     setPhase("moving");
+    stopIncidentAlarm(alarmContextRef, alarmTimerRef);
     setLastAlert("Incident cleared. Motion resumed.");
 
     const beforeFrame = beforeFrameRef.current;
@@ -382,6 +392,83 @@ async function exportIncidentToEncord(
     setStatus("failed");
     setMessage(describeError(error, "Encord export failed."));
   }
+}
+
+async function startIncidentAlarm(
+  alarmContextRef: MutableRefObject<AudioContext | null>,
+  alarmTimerRef: MutableRefObject<number | null>,
+  phaseRef: MutableRefObject<RunPhase>,
+) {
+  if (alarmTimerRef.current !== null) {
+    return;
+  }
+
+  const audioContext = await getOrCreateAudioContext(alarmContextRef);
+  if (audioContext === null) {
+    return;
+  }
+
+  await audioContext.resume();
+
+  const beep = () => {
+    const context = alarmContextRef.current;
+    if (context === null || phaseRef.current !== "stopped") {
+      return;
+    }
+
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = "square";
+    oscillator.frequency.value = 980;
+    gain.gain.value = 0.0001;
+
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+
+    const startTime = context.currentTime;
+    gain.gain.setValueAtTime(0.0001, startTime);
+    gain.gain.exponentialRampToValueAtTime(0.08, startTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.14);
+
+    oscillator.start(startTime);
+    oscillator.stop(startTime + 0.16);
+  };
+
+  beep();
+  alarmTimerRef.current = window.setInterval(beep, 420);
+}
+
+function stopIncidentAlarm(
+  alarmContextRef: MutableRefObject<AudioContext | null>,
+  alarmTimerRef: MutableRefObject<number | null>,
+) {
+  if (alarmTimerRef.current !== null) {
+    window.clearInterval(alarmTimerRef.current);
+    alarmTimerRef.current = null;
+  }
+
+  const context = alarmContextRef.current;
+  if (context !== null && context.state === "running") {
+    void context.suspend();
+  }
+}
+
+async function getOrCreateAudioContext(
+  alarmContextRef: MutableRefObject<AudioContext | null>,
+) {
+  if (alarmContextRef.current !== null) {
+    return alarmContextRef.current;
+  }
+
+  const AudioContextCtor =
+    window.AudioContext ?? (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+
+  if (AudioContextCtor === undefined) {
+    return null;
+  }
+
+  alarmContextRef.current = new AudioContextCtor();
+  return alarmContextRef.current;
 }
 
 function captureLiveFrame(video: HTMLVideoElement | null): string | null {
