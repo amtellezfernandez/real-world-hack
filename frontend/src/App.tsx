@@ -9,7 +9,7 @@ type MotionPose = {
   y: number;
 };
 
-type EncordExportStatus = "idle" | "sending" | "exported" | "failed";
+type EncordExportStatus = "idle" | "sending" | "blocked" | "exported" | "failed";
 
 const START_POSE: MotionPose = {
   heading: 0,
@@ -209,13 +209,15 @@ function App() {
     setLastAlert("Run reset. Motion resumes from the current lane start.");
   }
 
-  function openIncident() {
+  async function openIncident() {
     if (phaseRef.current !== "moving") {
       return;
     }
 
-    const capturedBefore = captureLiveFrame(videoRef.current);
+    const capturedBefore = await captureLiveFrameWithRetry(videoRef.current);
     if (capturedBefore === null) {
+      setEncordStatus("blocked");
+      setEncordMessage("Live camera frame was blocked. Retry when the feed is stable.");
       setLastAlert("Incident open blocked. Camera frame was not ready.");
       return;
     }
@@ -225,18 +227,20 @@ function App() {
     phaseRef.current = "stopped";
     setPhase("stopped");
     void startIncidentAlarm(alarmContextRef, alarmTimerRef, phaseRef);
-    setEncordStatus("idle");
+    setEncordStatus("blocked");
     setEncordMessage("Before frame captured. Resolve the incident to export to Encord.");
     setLastAlert("Incident open. Motion paused.");
   }
 
-  function resolveIncident() {
+  async function resolveIncident() {
     if (phaseRef.current !== "stopped") {
       return;
     }
 
-    const capturedAfter = captureLiveFrame(videoRef.current);
+    const capturedAfter = await captureLiveFrameWithRetry(videoRef.current);
     if (capturedAfter === null) {
+      setEncordStatus("blocked");
+      setEncordMessage("Live camera frame was blocked. Export waits for a stable frame.");
       setLastAlert("Incident resolve blocked. Camera frame was not ready.");
       return;
     }
@@ -258,8 +262,8 @@ function App() {
         setEncordMessage,
       );
     } else {
-      setEncordStatus("failed");
-      setEncordMessage("No before frame captured for Encord export.");
+      setEncordStatus("blocked");
+      setEncordMessage("No before frame was captured. Export is blocked until the incident opens cleanly.");
     }
   }
 
@@ -381,8 +385,14 @@ async function exportIncidentToEncord(
 
     const payload: { status?: string; detail?: string } = await response.json();
     if (payload.status !== "exported") {
+      if (payload.status === "export_unavailable") {
+        setStatus("blocked");
+        setMessage(payload.detail ?? "Encord export is blocked until the frame evidence is ready.");
+        return;
+      }
+
       setStatus("failed");
-      setMessage(payload.detail ?? "Encord export was unavailable.");
+      setMessage(payload.detail ?? "Encord export failed.");
       return;
     }
 
@@ -493,6 +503,29 @@ function captureLiveFrame(video: HTMLVideoElement | null): string | null {
 
   context.drawImage(video, 0, 0, width, height);
   return canvas.toDataURL("image/jpeg", 0.9);
+}
+
+async function captureLiveFrameWithRetry(
+  video: HTMLVideoElement | null,
+  attempts = 10,
+  delayMs = 60,
+) {
+  for (let index = 0; index < attempts; index += 1) {
+    const frame = captureLiveFrame(video);
+    if (frame !== null) {
+      return frame;
+    }
+
+    await wait(delayMs);
+  }
+
+  return null;
+}
+
+function wait(milliseconds: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, milliseconds);
+  });
 }
 
 function WarehouseMap({ pose }: { pose: MotionPose }) {
