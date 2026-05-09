@@ -318,7 +318,34 @@ class ApproveAlertRequest(ContractModel):
     approval_actor: str = Field(min_length=1)
     decision: Literal["approved"]
     alert_text: str = Field(min_length=1)
-    idempotency_key: str = Field(min_length=1)
+
+
+class MotionSample(ContractModel):
+    """Downsampled webcam frame used for motion estimation."""
+
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+    pixels: list[int] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_pixel_count(self) -> Self:
+        if len(self.pixels) != self.width * self.height:
+            raise ValueError("pixel count must match width times height")
+
+        if any(pixel < 0 or pixel > 255 for pixel in self.pixels):
+            raise ValueError("pixels must be 8-bit grayscale values")
+
+        return self
+
+
+class MotionEstimate(ContractModel):
+    """Estimated local motion state derived from webcam frames."""
+
+    x: float = Field(ge=0, le=100)
+    y: float = Field(ge=0, le=100)
+    heading: float = Field(ge=0, le=359.999999)
+    speed: float = Field(ge=0)
+    confidence: float = Field(ge=0, le=1)
 
 
 class IncidentCommandResponse(ContractModel):

@@ -21,6 +21,7 @@ from sitewalk.contracts import (
     ExportStatus,
     HealthResponse,
     IncidentState,
+    MotionEstimate,
     Observation,
     ObservationAssessment,
     ObservationReplay,
@@ -203,6 +204,41 @@ async def test_demo_replay_exposes_clear_and_blocked_frames() -> None:
     assert replay.frames[5].assessment.incident.review_sample.export_status == (
         ExportStatus.LOCAL_ONLY
     )
+
+
+async def test_motion_endpoint_tracks_frame_shift() -> None:
+    async with LifespanManager(app):
+        async with AsyncClient(
+            transport=ASGITransport(app=app),
+            base_url="http://testserver",
+        ) as client:
+            base = {"width": 20, "height": 12, "pixels": [0] * 240}
+            first = await client.post("/api/motion/estimate", json=base)
+            assert first.status_code == 200
+            first_estimate = MotionEstimate.model_validate(first.json())
+            assert first_estimate.x == 24
+            assert first_estimate.y == 76
+
+            shifted_pixels = [0] * 240
+            for y in range(4, 7):
+                for x in range(6, 9):
+                    shifted_pixels[y * 20 + x] = 255
+
+            shifted = {"width": 20, "height": 12, "pixels": shifted_pixels}
+            second = await client.post("/api/motion/estimate", json=shifted)
+            assert second.status_code == 200
+            second_estimate = MotionEstimate.model_validate(second.json())
+            assert second_estimate.confidence >= 0
+            assert (
+                second_estimate.x != first_estimate.x
+                or second_estimate.y != first_estimate.y
+            )
+
+            reset = await client.post("/api/motion/reset")
+            assert reset.status_code == 200
+            reset_estimate = MotionEstimate.model_validate(reset.json())
+            assert reset_estimate.x == 24
+            assert reset_estimate.y == 76
 
 def test_demo_replay_alerts_after_first_incident_frame_not_fixed_index() -> None:
     replay = build_blocked_exit_replay()

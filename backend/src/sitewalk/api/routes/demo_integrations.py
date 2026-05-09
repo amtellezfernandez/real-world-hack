@@ -1,4 +1,7 @@
+import base64
+from binascii import Error as BinasciiError
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from fastapi import APIRouter
 from pydantic import Field
@@ -7,7 +10,7 @@ from starlette.concurrency import run_in_threadpool
 from sitewalk.api.dependencies import SettingsDep
 from sitewalk.api.routes.demo_replay import ASSESSED_BLOCKED_EXIT_REPLAY
 from sitewalk.config import build_provider_env
-from sitewalk.contracts import ContractModel
+from sitewalk.contracts import ContractModel, ExportStatus
 from sitewalk.incident_reporting.outcome_analysis import (
     OpenAIOutcomeConfig,
     analyze_incident_outcome,
@@ -45,6 +48,8 @@ class OpenAIOutcomeResponse(ContractModel):
 class EncordExportRequest(ContractModel):
     """Optional live Encord upload request for demo evidence."""
 
+    before_image_data_url: str | None = Field(default=None)
+    after_image_data_url: str | None = Field(default=None)
     before_image_path: str | None = Field(default=None)
     after_image_path: str | None = Field(default=None)
     include_openai_report: bool = True
@@ -115,13 +120,35 @@ async def export_demo_replay_to_encord(
     )
     encord_config = build_encord_config_from_env(env=provider_env)
 
-    return await run_in_threadpool(
-        export_incident_packet_to_encord,
-        config=encord_config,
-        packet=packet,
-        before_image_path=path_or_none(request.before_image_path),
-        after_image_path=path_or_none(request.after_image_path),
-    )
+    try:
+        with TemporaryDirectory() as temp_dir_name:
+            temp_dir = Path(temp_dir_name)
+            before_image_path = resolve_upload_image_path(
+                data_url=request.before_image_data_url,
+                path=request.before_image_path,
+                temp_dir=temp_dir,
+                role="before",
+            )
+            after_image_path = resolve_upload_image_path(
+                data_url=request.after_image_data_url,
+                path=request.after_image_path,
+                temp_dir=temp_dir,
+                role="after",
+            )
+
+            return await run_in_threadpool(
+                export_incident_packet_to_encord,
+                config=encord_config,
+                packet=packet,
+                before_image_path=before_image_path,
+                after_image_path=after_image_path,
+            )
+    except ValueError as exc:
+        return EncordIncidentExportResult(
+            status=ExportStatus.EXPORT_UNAVAILABLE,
+            detail=str(exc),
+            packet=packet,
+        )
 
 
 def path_or_none(value: str | None) -> Path | None:
@@ -130,6 +157,42 @@ def path_or_none(value: str | None) -> Path | None:
         return None
 
     return Path(value)
+
+
+def resolve_upload_image_path(
+    *,
+    data_url: str | None,
+    path: str | None,
+    temp_dir: Path,
+    role: str,
+) -> Path | None:
+    """Materialize an upload image path from either a path or a data URL."""
+    if data_url is not None and data_url.strip() != "":
+        return write_data_url_image(temp_dir=temp_dir, data_url=data_url, role=role)
+
+    return path_or_none(path)
+
+
+def write_data_url_image(*, temp_dir: Path, data_url: str, role: str) -> Path:
+    """Persist a base64 data URL image to disk for Encord upload."""
+    if not data_url.startswith("data:") or "," not in data_url:
+        raise ValueError(f"{role} image data must be a data URL.")
+
+    header, payload = data_url.split(",", 1)
+    if ";base64" not in header:
+        raise ValueError(f"{role} image data URL must use base64 encoding.")
+
+    mime_type = header[5:].split(";", 1)[0]
+    suffix = ".jpg" if "jpeg" in mime_type or "jpg" in mime_type else ".png"
+
+    try:
+        decoded = base64.b64decode(payload, validate=True)
+    except (BinasciiError, ValueError) as exc:
+        raise ValueError(f"{role} image data URL could not be decoded.") from exc
+
+    output_path = temp_dir / f"{role}{suffix}"
+    output_path.write_bytes(decoded)
+    return output_path
 
 
 def analyze_outcome_with_provider_label(

@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type CameraStatus = "starting" | "live" | "blocked";
-type RunPhase = "arming" | "moving" | "closed";
+type RunPhase = "arming" | "moving" | "stopped" | "closed";
 
 type MotionPose = {
   heading: number;
   x: number;
   y: number;
 };
+
+type EncordExportStatus = "idle" | "sending" | "exported" | "failed";
 
 const START_POSE: MotionPose = {
   heading: 0,
@@ -17,6 +19,9 @@ const START_POSE: MotionPose = {
 
 const STOP_X = 46;
 const POSE_STEP = 0.1;
+const BACKEND_BASE_URL =
+  import.meta.env.VITE_BACKEND_URL ?? "http://127.0.0.1:8000";
+const ENCORD_EXPORT_ENDPOINT = `${BACKEND_BASE_URL}/api/demo-replay/export/encord`;
 
 function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -29,9 +34,13 @@ function App() {
   const [phase, setPhase] = useState<RunPhase>("arming");
   const [pose, setPose] = useState(START_POSE);
   const [clock, setClock] = useState(() => Date.now());
+  const [encordStatus, setEncordStatus] = useState<EncordExportStatus>("idle");
+  const [encordMessage, setEncordMessage] = useState("Waiting for the first incident.");
   const [lastAlert, setLastAlert] = useState(
-    "Webcam is live. The obstruction model slot is reserved for later.",
+    "Webcam is live. The incident model slot is reserved for later.",
   );
+  const beforeFrameRef = useRef<string | null>(null);
+  const afterFrameRef = useRef<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -170,16 +179,78 @@ function App() {
     return clamp((pose.x - START_POSE.x) / range, 0, 1);
   }, [pose.x]);
 
-  const laneState = "model pending";
   const motionState =
-    phase === "arming" ? "arming" : phase === "moving" ? "moving" : "closed";
+    phase === "arming"
+      ? "arming"
+      : phase === "moving"
+        ? "moving"
+        : phase === "stopped"
+          ? "stopped"
+          : "closed";
+  const incidentState = phase === "stopped" ? "open" : "clear";
 
   function resetRun() {
     phaseRef.current = cameraStatus === "live" ? "moving" : "arming";
     poseRef.current = START_POSE;
+    beforeFrameRef.current = null;
+    afterFrameRef.current = null;
+    setEncordStatus("idle");
+    setEncordMessage("Waiting for the first incident.");
     setPhase(cameraStatus === "live" ? "moving" : "arming");
     setPose(START_POSE);
-    setLastAlert("Run reset. Obstruction model slot remains open.");
+    setLastAlert("Run reset. Motion resumes from the current lane start.");
+  }
+
+  function openIncident() {
+    if (phaseRef.current !== "moving") {
+      return;
+    }
+
+    const capturedBefore = captureLiveFrame(videoRef.current);
+    if (capturedBefore === null) {
+      setLastAlert("Incident open blocked. Camera frame was not ready.");
+      return;
+    }
+
+    beforeFrameRef.current = capturedBefore;
+    afterFrameRef.current = null;
+    phaseRef.current = "stopped";
+    setPhase("stopped");
+    setEncordStatus("idle");
+    setEncordMessage("Before frame captured. Resolve the incident to export to Encord.");
+    setLastAlert("Incident open. Motion paused.");
+  }
+
+  function resolveIncident() {
+    if (phaseRef.current !== "stopped") {
+      return;
+    }
+
+    const capturedAfter = captureLiveFrame(videoRef.current);
+    if (capturedAfter === null) {
+      setLastAlert("Incident resolve blocked. Camera frame was not ready.");
+      return;
+    }
+
+    afterFrameRef.current = capturedAfter;
+    phaseRef.current = "moving";
+    setPhase("moving");
+    setLastAlert("Incident cleared. Motion resumed.");
+
+    const beforeFrame = beforeFrameRef.current;
+    if (beforeFrame !== null) {
+      setEncordStatus("sending");
+      setEncordMessage("Sending live incident evidence to Encord.");
+      void exportIncidentToEncord(
+        beforeFrame,
+        capturedAfter,
+        setEncordStatus,
+        setEncordMessage,
+      );
+    } else {
+      setEncordStatus("failed");
+      setEncordMessage("No before frame captured for Encord export.");
+    }
   }
 
   return (
@@ -192,7 +263,9 @@ function App() {
         </div>
         <div className="header-status">
           <span className="status-pill">Camera {cameraStatus === "live" ? "live" : cameraStatus}</span>
+          <span className="status-pill">Incident {incidentState}</span>
           <span className="status-pill">Motion {motionState}</span>
+          <span className="status-pill">Encord {encordStatus}</span>
           <span className="status-pill">Run {Math.round(progress * 100)}%</span>
         </div>
       </header>
@@ -242,11 +315,21 @@ function App() {
               <MetricRow label="Vision" value="model pending" />
               <MetricRow label="Heading" value={`${pose.heading.toFixed(0)}°`} />
               <MetricRow label="Progress" value={`${Math.round(progress * 100)}%`} />
+              <MetricRow label="Export" value={encordStatus} />
             </div>
-            <button className="action-button" onClick={resetRun} type="button">
+            <div className="action-row">
+              <button className="action-button" onClick={openIncident} type="button">
+                Open incident
+              </button>
+              <button className="action-button action-button--secondary" onClick={resolveIncident} type="button">
+                Resolve
+              </button>
+            </div>
+            <button className="action-button action-button--ghost" onClick={resetRun} type="button">
               Reset run
             </button>
             <p className="note">{lastAlert}</p>
+            <p className="note">{encordMessage}</p>
           </section>
         </aside>
       </section>
@@ -261,6 +344,68 @@ function MetricRow({ label, value }: { label: string; value: string }) {
       <strong>{value}</strong>
     </div>
   );
+}
+
+async function exportIncidentToEncord(
+  beforeImageDataUrl: string,
+  afterImageDataUrl: string,
+  setStatus: (status: EncordExportStatus) => void,
+  setMessage: (message: string) => void,
+) {
+  try {
+    const response = await fetch(ENCORD_EXPORT_ENDPOINT, {
+      body: JSON.stringify({
+        before_image_data_url: beforeImageDataUrl,
+        after_image_data_url: afterImageDataUrl,
+        include_openai_report: true,
+      }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    });
+
+    if (!response.ok) {
+      throw new Error(`Export request failed with status ${response.status}`);
+    }
+
+    const payload: { status?: string; detail?: string } = await response.json();
+    if (payload.status !== "exported") {
+      setStatus("failed");
+      setMessage(payload.detail ?? "Encord export was unavailable.");
+      return;
+    }
+
+    setStatus("exported");
+    setMessage(payload.detail ?? "Live incident exported to Encord.");
+  } catch (error: unknown) {
+    setStatus("failed");
+    setMessage(describeError(error, "Encord export failed."));
+  }
+}
+
+function captureLiveFrame(video: HTMLVideoElement | null): string | null {
+  if (video === null || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+    return null;
+  }
+
+  const width = video.videoWidth;
+  const height = video.videoHeight;
+  if (width <= 0 || height <= 0) {
+    return null;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext("2d");
+  if (context === null) {
+    return null;
+  }
+
+  context.drawImage(video, 0, 0, width, height);
+  return canvas.toDataURL("image/jpeg", 0.9);
 }
 
 function WarehouseMap({ pose }: { pose: MotionPose }) {
@@ -388,6 +533,14 @@ function describeCameraError(error: unknown): string {
   }
 
   return "Camera access was denied.";
+}
+
+function describeError(error: unknown, fallback: string): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return fallback;
 }
 
 function formatClock(clock: number): string {

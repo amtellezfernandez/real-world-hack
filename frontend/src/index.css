@@ -305,6 +305,22 @@ h2 {
   outline-offset: 2px;
 }
 
+.action-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr);
+  gap: 6px;
+}
+
+.action-button--secondary,
+.action-button--ghost {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.action-button--ghost {
+  margin-top: 2px;
+}
+
 .note {
   color: var(--text-muted);
   font-size: 11px;
