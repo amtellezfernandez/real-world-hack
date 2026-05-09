@@ -9,7 +9,7 @@ type MotionPose = {
   y: number;
 };
 
-type EncordExportStatus = "idle" | "sending" | "exported" | "failed";
+type EncordExportStatus = "idle" | "captured" | "sending" | "exported" | "failed";
 type LiveIncidentSignalStatus = "accepted" | "exported" | "failed";
 
 const START_POSE: MotionPose = {
@@ -246,6 +246,7 @@ function App() {
     phaseRef.current = "stopped";
     setPhase("stopped");
     void startIncidentAlarm(alarmContextRef, alarmTimerRef, phaseRef);
+    setEncordStatus("captured");
     setEncordMessage("Before frame stored. Resolve the incident to export to Encord.");
     setLastAlert("Incident open. Motion paused.");
   }
