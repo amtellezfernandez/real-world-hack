@@ -10,6 +10,7 @@ type MotionPose = {
 };
 
 type EncordExportStatus = "idle" | "sending" | "exported" | "failed";
+type LiveIncidentSignalStatus = "accepted" | "exported" | "failed";
 
 const START_POSE: MotionPose = {
   heading: 0,
@@ -19,9 +20,6 @@ const START_POSE: MotionPose = {
 
 const STOP_X = 46;
 const POSE_STEP = 0.1;
-const ENCORD_EXPORT_ENDPOINT =
-  import.meta.env.VITE_ENCORD_EXPORT_ENDPOINT ?? "/api/demo-replay/export/encord";
-
 function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const poseRef = useRef(START_POSE);
@@ -229,12 +227,22 @@ function App() {
       return;
     }
 
+    setEncordStatus("sending");
+    setEncordMessage("Sending before frame to the backend.");
+    const result = await sendLiveIncidentSignal("/api/demo-replay/incident/open", capturedBefore);
+    if (result.status !== "accepted") {
+      setEncordStatus("failed");
+      setEncordMessage(result.detail);
+      setLastAlert("Incident open failed.");
+      return;
+    }
+
     beforeFrameRef.current = capturedBefore;
     afterFrameRef.current = null;
     phaseRef.current = "stopped";
     setPhase("stopped");
     void startIncidentAlarm(alarmContextRef, alarmTimerRef, phaseRef);
-    setEncordMessage("Before frame captured. Resolve the incident to export to Encord.");
+    setEncordMessage("Before frame stored. Resolve the incident to export to Encord.");
     setLastAlert("Incident open. Motion paused.");
   }
 
@@ -262,19 +270,25 @@ function App() {
     stopIncidentAlarm(alarmContextRef, alarmTimerRef);
     setLastAlert("Incident cleared. Motion resumed.");
 
-    const beforeFrame = beforeFrameRef.current;
-    if (beforeFrame !== null) {
-      setEncordMessage("Sending live incident evidence to Encord.");
-      await exportIncidentToEncord(
-        beforeFrame,
-        capturedAfter,
-        setEncordStatus,
-        setEncordMessage,
-      );
-    } else {
+    if (beforeFrameRef.current === null) {
       setEncordStatus("failed");
       setEncordMessage("No before frame was captured. Resolve and reopen the incident.");
+      return;
     }
+
+    setEncordStatus("sending");
+    setEncordMessage("Sending after frame to the backend and exporting to Encord.");
+    const result = await sendLiveIncidentSignal("/api/demo-replay/incident/resolve", capturedAfter);
+    if (result.status === "exported") {
+      setEncordStatus("exported");
+      setEncordMessage(result.detail);
+      beforeFrameRef.current = null;
+      afterFrameRef.current = null;
+      return;
+    }
+
+    setEncordStatus("failed");
+    setEncordMessage(result.detail);
   }
 
   return (
@@ -370,61 +384,48 @@ function MetricRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-async function exportIncidentToEncord(
-  beforeImageDataUrl: string,
-  afterImageDataUrl: string,
-  setStatus: (status: EncordExportStatus) => void,
-  setMessage: (message: string) => void,
+async function sendLiveIncidentSignal(
+  endpoint: "/api/demo-replay/incident/open" | "/api/demo-replay/incident/resolve",
+  imageDataUrl: string,
 ) {
-  const attempts = 5;
+  try {
+    const response = await fetch(endpoint, {
+      body: JSON.stringify({
+        image_data_url: imageDataUrl,
+      }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "POST",
+    });
 
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    try {
-      const response = await fetch(ENCORD_EXPORT_ENDPOINT, {
-        body: JSON.stringify({
-          before_image_data_url: beforeImageDataUrl,
-          after_image_data_url: afterImageDataUrl,
-          include_openai_report: true,
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-        method: "POST",
-      });
+    const payload: { status?: LiveIncidentSignalStatus; detail?: string } =
+      await response.json();
 
-      if (!response.ok) {
-        throw new Error(`Export request failed with status ${response.status}`);
-      }
-
-      const payload: { status?: string; detail?: string } = await response.json();
-      if (payload.status === "exported") {
-        setStatus("exported");
-        setMessage(payload.detail ?? "Live incident exported to Encord.");
-        return;
-      }
-
-      if (payload.status === "export_unavailable") {
-        setStatus("failed");
-        setMessage(`Encord export unavailable: ${payload.detail ?? "unknown reason"}`);
-        return;
-      }
-
-      setMessage(
-        `${payload.detail ?? "Encord export not ready."} Attempt ${attempt}/${attempts}.`,
-      );
-    } catch (error: unknown) {
-      setMessage(
-        `${describeError(error, "Encord export failed.")} Attempt ${attempt}/${attempts}.`,
-      );
+    if (!response.ok) {
+      return {
+        detail: payload.detail ?? `Request failed with status ${response.status}.`,
+        status: "failed" as const,
+      };
     }
 
-    if (attempt < attempts) {
-      await wait(300 * attempt);
+    if (payload.status === "accepted" || payload.status === "exported") {
+      return {
+        detail: payload.detail ?? "Incident signal accepted.",
+        status: payload.status,
+      };
     }
+
+    return {
+      detail: payload.detail ?? "Incident signal failed.",
+      status: "failed" as const,
+    };
+  } catch (error: unknown) {
+    return {
+      detail: describeError(error, "Incident signal failed."),
+      status: "failed" as const,
+    };
   }
-
-  setStatus("failed");
-  setMessage("Encord export failed after retries.");
 }
 
 async function startIncidentAlarm(

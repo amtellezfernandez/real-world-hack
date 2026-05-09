@@ -2,11 +2,13 @@ import base64
 from binascii import Error as BinasciiError
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Literal
 
 from fastapi import APIRouter
 from pydantic import Field
 from starlette.concurrency import run_in_threadpool
 
+from sitewalk.api.dependencies import AppContainerDep
 from sitewalk.api.dependencies import SettingsDep
 from sitewalk.api.routes.demo_replay import ASSESSED_BLOCKED_EXIT_REPLAY
 from sitewalk.config import build_provider_env
@@ -53,6 +55,21 @@ class EncordExportRequest(ContractModel):
     before_image_path: str | None = Field(default=None)
     after_image_path: str | None = Field(default=None)
     include_openai_report: bool = True
+
+
+class LiveIncidentSignalRequest(ContractModel):
+    """Live frame payload sent by the browser for the active incident."""
+
+    image_data_url: str = Field(min_length=1)
+
+
+class LiveIncidentSignalResponse(ContractModel):
+    """Status for a live incident signal."""
+
+    status: Literal["accepted", "exported", "failed"]
+    detail: str
+    packet: EncordIncidentExportPacket | None = None
+    provider_sample_ids: list[str] = Field(default_factory=list)
 
 
 @router.get("/encord/ontology")
@@ -149,6 +166,111 @@ async def export_demo_replay_to_encord(
             detail=str(exc),
             packet=packet,
         )
+
+
+@router.post("/incident/open")
+async def open_live_incident(
+    request: LiveIncidentSignalRequest,
+    container: AppContainerDep,
+) -> LiveIncidentSignalResponse:
+    """Store the before frame for the current live incident."""
+    with container.live_incident_lock:
+        object.__setattr__(
+            container,
+            "live_incident_before_image_data_url",
+            request.image_data_url,
+        )
+        object.__setattr__(container, "live_incident_after_image_data_url", None)
+
+    return LiveIncidentSignalResponse(
+        status="accepted",
+        detail="Before frame stored. Resolve the incident to export to Encord.",
+    )
+
+
+@router.post("/incident/resolve")
+async def resolve_live_incident(
+    request: LiveIncidentSignalRequest,
+    container: AppContainerDep,
+    settings: SettingsDep,
+) -> LiveIncidentSignalResponse:
+    """Resolve the live incident and export the stored frames to Encord."""
+    with container.live_incident_lock:
+        before_image_data_url = container.live_incident_before_image_data_url
+        object.__setattr__(
+            container,
+            "live_incident_after_image_data_url",
+            request.image_data_url,
+        )
+
+    if before_image_data_url is None:
+        return LiveIncidentSignalResponse(
+            status="failed",
+            detail="Open the incident before resolving it.",
+        )
+
+    provider_env = build_provider_env(settings)
+    openai_config = build_openai_outcome_config_from_env(env=provider_env)
+    packet_without_report = build_demo_replay_encord_packet(
+        replay=ASSESSED_BLOCKED_EXIT_REPLAY,
+    )
+    outcome_report = await run_in_threadpool(
+        analyze_incident_outcome,
+        config=openai_config,
+        packet=packet_without_report,
+    )
+    packet = build_demo_replay_encord_packet(
+        replay=ASSESSED_BLOCKED_EXIT_REPLAY,
+        outcome_report=outcome_report,
+    )
+    encord_config = build_encord_config_from_env(env=provider_env)
+
+    try:
+        with TemporaryDirectory() as temp_dir_name:
+            temp_dir = Path(temp_dir_name)
+            before_image_path = write_data_url_image(
+                temp_dir=temp_dir,
+                data_url=before_image_data_url,
+                role="before",
+            )
+            after_image_path = write_data_url_image(
+                temp_dir=temp_dir,
+                data_url=request.image_data_url,
+                role="after",
+            )
+            result = await run_in_threadpool(
+                export_incident_packet_to_encord,
+                config=encord_config,
+                packet=packet,
+                before_image_path=before_image_path,
+                after_image_path=after_image_path,
+            )
+    except ValueError as exc:
+        return LiveIncidentSignalResponse(
+            status="failed",
+            detail=str(exc),
+            packet=packet,
+        )
+
+    with container.live_incident_lock:
+        if result.status == ExportStatus.EXPORTED:
+            object.__setattr__(container, "live_incident_before_image_data_url", None)
+            object.__setattr__(container, "live_incident_after_image_data_url", None)
+
+    if result.status == ExportStatus.EXPORTED:
+        return LiveIncidentSignalResponse(
+            status="exported",
+            detail=result.detail,
+            packet=result.packet,
+            provider_sample_ids=result.provider_sample_ids,
+        )
+
+    return LiveIncidentSignalResponse(
+        status="failed",
+        detail=result.detail,
+        packet=result.packet,
+        provider_sample_ids=result.provider_sample_ids,
+    )
 
 
 def path_or_none(value: str | None) -> Path | None:

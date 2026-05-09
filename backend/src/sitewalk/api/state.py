@@ -21,4 +21,7 @@ class AppContainer:
     motion_pose_x: float = 24
     motion_pose_y: float = 76
     motion_heading: float = 90
+    live_incident_lock: Lock = field(default_factory=Lock)
+    live_incident_before_image_data_url: str | None = None
+    live_incident_after_image_data_url: str | None = None
     approval_idempotency_max_entries: int = APPROVAL_IDEMPOTENCY_MAX_ENTRIES
