@@ -24,6 +24,130 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/demo-replay/encord/ontology": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Demo Encord Ontology
+         * @description Return the Encord ontology expected by incident exports.
+         */
+        get: operations["get_demo_encord_ontology_api_demo_replay_encord_ontology_get"];
+        put?: never;
+        /**
+         * Create Demo Encord Ontology
+         * @description Create the Encord ontology when live credentials are configured.
+         */
+        post: operations["create_demo_encord_ontology_api_demo_replay_encord_ontology_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/demo-replay/encord/export-packet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Demo Encord Export Packet
+         * @description Return the Encord-ready incident packet without any provider calls.
+         */
+        get: operations["get_demo_encord_export_packet_api_demo_replay_encord_export_packet_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/demo-replay/report/openai": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Analyze Demo Replay With Openai
+         * @description Analyze the closed replay incident with OpenAI or local fallback.
+         */
+        post: operations["analyze_demo_replay_with_openai_api_demo_replay_report_openai_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/demo-replay/export/encord": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Demo Replay To Encord
+         * @description Upload before/after incident evidence to Encord when configured.
+         */
+        post: operations["export_demo_replay_to_encord_api_demo_replay_export_encord_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/demo-replay/incident/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open Live Incident
+         * @description Store the before frame for the current live incident.
+         */
+        post: operations["open_live_incident_api_demo_replay_incident_open_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/demo-replay/incident/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve Live Incident
+         * @description Resolve the live incident and export the stored frames to Encord.
+         */
+        post: operations["resolve_live_incident_api_demo_replay_incident_resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -129,6 +253,80 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/motion/estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Estimate Motion */
+        post: operations["estimate_motion_api_motion_estimate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/motion/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset Motion */
+        post: operations["reset_motion_api_motion_reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/perception/detect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Detect Incident Objects
+         * @description Detect incident-relevant objects in a camera frame.
+         */
+        post: operations["detect_incident_objects_api_perception_detect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/perception/semantic-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Describe Semantic Status
+         * @description Describe the semantic status of a camera frame.
+         */
+        post: operations["describe_semantic_status_api_perception_semantic_status_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/product-contract": {
         parameters: {
             query?: never;
@@ -181,8 +379,6 @@ export interface components {
             decision: "approved";
             /** Alert Text */
             alert_text: string;
-            /** Idempotency Key */
-            idempotency_key: string;
         };
         /**
          * AuditPacket
@@ -304,6 +500,178 @@ export interface components {
             requires_external_providers: boolean;
         };
         /**
+         * EncordExportRequest
+         * @description Optional live Encord upload request for demo evidence.
+         */
+        EncordExportRequest: {
+            /** Before Image Data Url */
+            before_image_data_url?: string | null;
+            /** After Image Data Url */
+            after_image_data_url?: string | null;
+            /** Before Image Path */
+            before_image_path?: string | null;
+            /** After Image Path */
+            after_image_path?: string | null;
+            /**
+             * Include Openai Report
+             * @default true
+             */
+            include_openai_report: boolean;
+        };
+        /**
+         * EncordFrameClassification
+         * @description Frame-level classification values aligned to the Encord ontology.
+         */
+        EncordFrameClassification: {
+            /**
+             * Zone State
+             * @enum {string}
+             */
+            zone_state: "clear" | "blocked" | "uncertain";
+            /**
+             * Approval State
+             * @enum {string}
+             */
+            approval_state: "pending" | "approved" | "rejected";
+            /**
+             * Robot Action
+             * @enum {string}
+             */
+            robot_action: "none" | "stopped" | "remove_obstruction" | "manual_intervention";
+            /**
+             * Verification Result
+             * @enum {string}
+             */
+            verification_result: "cleared" | "still_blocked" | "unsafe" | "uncertain";
+            /**
+             * Review Decision
+             * @enum {string}
+             */
+            review_decision: "accepted" | "corrected" | "rejected" | "pending";
+        };
+        /**
+         * EncordIncidentExportPacket
+         * @description Complete Encord-ready incident packet.
+         */
+        EncordIncidentExportPacket: {
+            ontology: components["schemas"]["EncordOntologySpec"];
+            incident: components["schemas"]["SafetyIncident"];
+            review_sample: components["schemas"]["ReviewSample"];
+            /** Frames */
+            frames: components["schemas"]["EncordIncidentFrame"][];
+            outcome_report?: components["schemas"]["IncidentOutcomeReport"] | null;
+            /** Metadata */
+            metadata: {
+                [key: string]: string;
+            };
+        };
+        /**
+         * EncordIncidentExportResult
+         * @description Result of attempting to upload incident evidence to Encord.
+         */
+        EncordIncidentExportResult: {
+            status: components["schemas"]["ExportStatus"];
+            /** Detail */
+            detail: string;
+            /** Provider Sample Ids */
+            provider_sample_ids?: string[];
+            packet: components["schemas"]["EncordIncidentExportPacket"];
+        };
+        /**
+         * EncordIncidentFrame
+         * @description One before/after frame prepared for Encord incident logging.
+         */
+        EncordIncidentFrame: {
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "before" | "after";
+            evidence_frame: components["schemas"]["EvidenceFrame"];
+            /** Objects */
+            objects: components["schemas"]["EncordObjectLabel"][];
+            classifications: components["schemas"]["EncordFrameClassification"];
+        };
+        /**
+         * EncordObjectLabel
+         * @description Object annotation to create or review in Encord.
+         */
+        EncordObjectLabel: {
+            /**
+             * Name
+             * @enum {string}
+             */
+            name: "robot_path" | "obstruction" | "safe_drop_zone" | "human" | "robot";
+            /** Polygon */
+            polygon?: components["schemas"]["NormalizedPoint"][] | null;
+            bounding_box?: components["schemas"]["NormalizedBoundingBox"] | null;
+            /** Confidence */
+            confidence?: number | null;
+        };
+        /**
+         * EncordOntologyClassification
+         * @description Classification type that should exist in the Encord ontology.
+         */
+        EncordOntologyClassification: {
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "radio" | "text";
+            /** Description */
+            description: string;
+            /** Options */
+            options?: string[];
+        };
+        /**
+         * EncordOntologyCreationResult
+         * @description Result of attempting to create the Encord ontology.
+         */
+        EncordOntologyCreationResult: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "created" | "unavailable" | "failed";
+            /** Ontology Title */
+            ontology_title: string;
+            /** Ontology Hash */
+            ontology_hash?: string | null;
+            /** Detail */
+            detail: string;
+        };
+        /**
+         * EncordOntologyObject
+         * @description Object type that should exist in the Encord ontology.
+         */
+        EncordOntologyObject: {
+            /** Name */
+            name: string;
+            /**
+             * Shape
+             * @enum {string}
+             */
+            shape: "bounding_box" | "polygon";
+            /** Description */
+            description: string;
+        };
+        /**
+         * EncordOntologySpec
+         * @description Source-of-truth ontology expected by the incident export pipeline.
+         */
+        EncordOntologySpec: {
+            /** Title */
+            title: string;
+            /** Description */
+            description: string;
+            /** Objects */
+            objects: components["schemas"]["EncordOntologyObject"][];
+            /** Classifications */
+            classifications: components["schemas"]["EncordOntologyClassification"][];
+        };
+        /**
          * EvidenceAnnotation
          * @description Label attached to an evidence frame.
          */
@@ -343,6 +711,69 @@ export interface components {
          * @enum {string}
          */
         ExportStatus: "local_only" | "export_pending" | "exported" | "export_unavailable";
+        /**
+         * GeminiDetectionBox
+         * @description Normalized detection box in image coordinates.
+         */
+        GeminiDetectionBox: {
+            /** X Min */
+            x_min: number;
+            /** Y Min */
+            y_min: number;
+            /** X Max */
+            x_max: number;
+            /** Y Max */
+            y_max: number;
+        };
+        /**
+         * GeminiObjectDetection
+         * @description Incident-relevant object detected by Gemini Robotics-ER.
+         */
+        GeminiObjectDetection: {
+            /** Label */
+            label: string;
+            /** Confidence */
+            confidence?: number | null;
+            box: components["schemas"]["GeminiDetectionBox"];
+        };
+        /**
+         * GeminiObjectDetectionRequest
+         * @description Inline camera frame for Gemini Robotics-ER object detection.
+         */
+        GeminiObjectDetectionRequest: {
+            /** Image Base64 */
+            image_base64: string;
+            /** @default image/jpeg */
+            mime_type: components["schemas"]["InlineImageMimeType"];
+        };
+        /**
+         * GeminiObjectDetectionResponse
+         * @description Gemini Robotics-ER object detections for a camera frame.
+         */
+        GeminiObjectDetectionResponse: {
+            /** Model */
+            model: string;
+            /**
+             * Detected At
+             * Format: date-time
+             */
+            detected_at: string;
+            /** Detections */
+            detections?: components["schemas"]["GeminiObjectDetection"][];
+        };
+        /**
+         * GeminiSemanticStatusResult
+         * @description Structured semantic status for the visible path.
+         */
+        GeminiSemanticStatusResult: {
+            state: components["schemas"]["PathState"];
+            /** Blocking Object */
+            blocking_object?: string | null;
+            /** Confidence */
+            confidence: number;
+            /** Rationale */
+            rationale: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -388,6 +819,47 @@ export interface components {
             latest_observation: components["schemas"]["Observation"];
         };
         /**
+         * IncidentOutcomeDatasetLabels
+         * @description Ontology-aligned dataset labels recommended by outcome analysis.
+         */
+        IncidentOutcomeDatasetLabels: {
+            /**
+             * Zone State Before
+             * @enum {string}
+             */
+            zone_state_before: "clear" | "blocked" | "uncertain";
+            /**
+             * Zone State After
+             * @enum {string}
+             */
+            zone_state_after: "clear" | "blocked" | "uncertain";
+            /**
+             * Verification Result
+             * @enum {string}
+             */
+            verification_result: "cleared" | "still_blocked" | "unsafe" | "uncertain";
+            /**
+             * Review Decision
+             * @enum {string}
+             */
+            review_decision: "accepted" | "corrected" | "rejected" | "pending";
+        };
+        /**
+         * IncidentOutcomeReport
+         * @description Structured analysis of an incident outcome.
+         */
+        IncidentOutcomeReport: {
+            /** Summary */
+            summary: string;
+            /** Worked */
+            worked: string[];
+            /** Failed Or Risky */
+            failed_or_risky: string[];
+            recommended_dataset_labels: components["schemas"]["IncidentOutcomeDatasetLabels"];
+            /** Operator Review Needed */
+            operator_review_needed: boolean;
+        };
+        /**
          * IncidentReport
          * @description Structured explanation generated for an opened incident.
          */
@@ -410,6 +882,90 @@ export interface components {
          * @enum {string}
          */
         IncidentState: "clear" | "dwell" | "incident_open" | "alert_pending" | "alert_broadcast" | "clearing" | "verified_clear" | "closed" | "uncertain";
+        /** @enum {string} */
+        InlineImageMimeType: "image/jpeg" | "image/png" | "image/webp";
+        /**
+         * LiveIncidentSignalRequest
+         * @description Live frame payload sent by the browser for the active incident.
+         */
+        LiveIncidentSignalRequest: {
+            /** Image Data Url */
+            image_data_url: string;
+            /** Blocking Object */
+            blocking_object?: string | null;
+            /** Confidence */
+            confidence?: number | null;
+            /** Rationale */
+            rationale?: string | null;
+        };
+        /**
+         * LiveIncidentSignalResponse
+         * @description Status for a live incident signal.
+         */
+        LiveIncidentSignalResponse: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "accepted" | "exported" | "failed";
+            /** Detail */
+            detail: string;
+            packet?: components["schemas"]["EncordIncidentExportPacket"] | null;
+            /** Provider Sample Ids */
+            provider_sample_ids?: string[];
+        };
+        /**
+         * MotionEstimate
+         * @description Estimated local motion state derived from webcam frames.
+         */
+        MotionEstimate: {
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+            /** Heading */
+            heading: number;
+            /** Speed */
+            speed: number;
+            /** Confidence */
+            confidence: number;
+        };
+        /**
+         * MotionSample
+         * @description Downsampled webcam frame used for motion estimation.
+         */
+        MotionSample: {
+            /** Width */
+            width: number;
+            /** Height */
+            height: number;
+            /** Pixels */
+            pixels: number[];
+        };
+        /**
+         * NormalizedBoundingBox
+         * @description Normalized bounding box coordinates for Encord-ready labels.
+         */
+        NormalizedBoundingBox: {
+            /** X Min */
+            x_min: number;
+            /** Y Min */
+            y_min: number;
+            /** X Max */
+            x_max: number;
+            /** Y Max */
+            y_max: number;
+        };
+        /**
+         * NormalizedPoint
+         * @description Normalized point in image coordinates.
+         */
+        NormalizedPoint: {
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+        };
         /**
          * Observation
          * @description Evidence-backed critical-zone observation.
@@ -441,6 +997,21 @@ export interface components {
          * @enum {string}
          */
         ObservedState: "clear" | "blocked" | "uncertain" | "camera_unavailable";
+        /**
+         * OpenAIOutcomeResponse
+         * @description Outcome report plus the provider selected for analysis.
+         */
+        OpenAIOutcomeResponse: {
+            /** Provider */
+            provider: string;
+            report: components["schemas"]["IncidentOutcomeReport"];
+        };
+        /**
+         * PathState
+         * @description Semantic state of the visible path.
+         * @enum {string}
+         */
+        PathState: "clear" | "blocked";
         /**
          * ProductContract
          * @description Contract catalog shared with the frontend.
@@ -571,6 +1142,18 @@ export interface components {
             review_sample?: components["schemas"]["ReviewSample"] | null;
         };
         /**
+         * SemanticStatusResponse
+         * @description Semantic status result for a camera frame.
+         */
+        SemanticStatusResponse: {
+            /**
+             * Assessed At
+             * Format: date-time
+             */
+            assessed_at: string;
+            status: components["schemas"]["GeminiSemanticStatusResult"];
+        };
+        /**
          * Severity
          * @description Incident severity levels.
          * @enum {string}
@@ -636,6 +1219,185 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DemoReplay"];
+                };
+            };
+        };
+    };
+    get_demo_encord_ontology_api_demo_replay_encord_ontology_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncordOntologySpec"];
+                };
+            };
+        };
+    };
+    create_demo_encord_ontology_api_demo_replay_encord_ontology_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncordOntologyCreationResult"];
+                };
+            };
+        };
+    };
+    get_demo_encord_export_packet_api_demo_replay_encord_export_packet_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncordIncidentExportPacket"];
+                };
+            };
+        };
+    };
+    analyze_demo_replay_with_openai_api_demo_replay_report_openai_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpenAIOutcomeResponse"];
+                };
+            };
+        };
+    };
+    export_demo_replay_to_encord_api_demo_replay_export_encord_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EncordExportRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncordIncidentExportResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    open_live_incident_api_demo_replay_incident_open_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LiveIncidentSignalRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LiveIncidentSignalResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_live_incident_api_demo_replay_incident_resolve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LiveIncidentSignalRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LiveIncidentSignalResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -795,6 +1557,125 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditPacket"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    estimate_motion_api_motion_estimate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MotionSample"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MotionEstimate"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_motion_api_motion_reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MotionEstimate"];
+                };
+            };
+        };
+    };
+    detect_incident_objects_api_perception_detect_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GeminiObjectDetectionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeminiObjectDetectionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    describe_semantic_status_api_perception_semantic_status_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GeminiObjectDetectionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SemanticStatusResponse"];
                 };
             };
             /** @description Validation Error */

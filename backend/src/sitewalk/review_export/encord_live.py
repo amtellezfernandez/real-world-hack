@@ -47,6 +47,14 @@ class EncordStorageFolder(Protocol):
         client_metadata: dict[str, str],
     ) -> EncordUploadedItem: ...
 
+    def upload_text(
+        self,
+        file_path: str,
+        *,
+        title: str,
+        client_metadata: dict[str, str],
+    ) -> EncordUploadedItem: ...
+
 
 class EncordDataset(Protocol):
     """Small protocol for the Encord dataset SDK object."""
@@ -180,7 +188,10 @@ def export_incident_packet_to_encord(
         client = build_encord_client(config=config)
         storage_folder = get_or_create_storage_folder(
             client=client,
-            folder_name=config.storage_folder,
+            folder_name=build_incident_storage_folder_name(
+                base_folder_name=config.storage_folder,
+                incident_id=packet.incident.id,
+            ),
         )
         uploaded_item_ids = [
             upload_incident_image(
@@ -191,6 +202,15 @@ def export_incident_packet_to_encord(
             )
             for image_path, role in zip(image_paths, ("before", "after"), strict=True)
         ]
+        log_path = after_image_path.parent / f"{packet.incident.id}-logs.txt"
+        log_path.write_text(build_incident_log_text(packet=packet), encoding="utf-8")
+        uploaded_item_ids.append(
+            upload_incident_text_log(
+                storage_folder=storage_folder,
+                log_path=log_path,
+                packet=packet,
+            )
+        )
         dataset = client.get_dataset(config.dataset_id)
         dataset.link_items(uploaded_item_ids)
     except Exception as exc:  # pragma: no cover - exercised only with live SDK.
@@ -281,6 +301,15 @@ def get_or_create_storage_folder(
     return client.create_storage_folder(folder_name)
 
 
+def build_incident_storage_folder_name(
+    *,
+    base_folder_name: str,
+    incident_id: str,
+) -> str:
+    """Build a stable Encord storage folder name for one incident."""
+    return f"{base_folder_name}/{incident_id}"
+
+
 def upload_incident_image(
     *,
     storage_folder: EncordStorageFolder,
@@ -289,7 +318,68 @@ def upload_incident_image(
     role: str,
 ) -> str:
     """Upload a single incident image with searchable incident metadata."""
-    metadata = {
+    uploaded_item = storage_folder.upload_image(
+        str(image_path),
+        title=f"{packet.incident.id}-{role}{image_path.suffix}",
+        client_metadata=build_incident_metadata(packet=packet, role=role),
+    )
+    uploaded_uuid = getattr(uploaded_item, "uuid", uploaded_item)
+
+    return str(uploaded_uuid)
+
+
+def upload_incident_text_log(
+    *,
+    storage_folder: EncordStorageFolder,
+    log_path: Path,
+    packet: EncordIncidentExportPacket,
+) -> str:
+    """Upload the incident log text file with the same searchable metadata."""
+    uploaded_item = storage_folder.upload_text(
+        str(log_path),
+        title=log_path.name,
+        client_metadata=build_incident_metadata(packet=packet, role="logs"),
+    )
+    uploaded_uuid = getattr(uploaded_item, "uuid", uploaded_item)
+
+    return str(uploaded_uuid)
+
+
+def build_incident_log_text(*, packet: EncordIncidentExportPacket) -> str:
+    """Build the .txt log content uploaded next to incident images."""
+    outcome = packet.outcome_report
+    metadata_lines = [f"{key}: {value}" for key, value in sorted(packet.metadata.items())]
+
+    return "\n".join(
+        [
+            f"incident_id: {packet.incident.id}",
+            f"zone_id: {packet.incident.zone_id}",
+            f"state: {packet.incident.state.value}",
+            "",
+            "[metadata]",
+            *metadata_lines,
+            "",
+            "[summary]",
+            outcome.summary if outcome is not None else "",
+            "",
+            "[worked]",
+            *(outcome.worked if outcome is not None else []),
+            "",
+            "[failed_or_risky]",
+            *(outcome.failed_or_risky if outcome is not None else []),
+            "",
+        ]
+    )
+
+
+def build_incident_metadata(
+    *,
+    packet: EncordIncidentExportPacket,
+    role: str,
+) -> dict[str, str]:
+    """Build metadata shared by images and the .txt incident log."""
+    return {
+        **packet.metadata,
         "incident_id": packet.incident.id,
         "frame_role": role,
         "zone_id": packet.incident.zone_id,
@@ -297,12 +387,14 @@ def upload_incident_image(
         "openai_outcome_summary": (
             packet.outcome_report.summary if packet.outcome_report is not None else ""
         ),
+        "outcome_worked": (
+            " | ".join(packet.outcome_report.worked)
+            if packet.outcome_report is not None
+            else ""
+        ),
+        "outcome_failed_or_risky": (
+            " | ".join(packet.outcome_report.failed_or_risky)
+            if packet.outcome_report is not None
+            else ""
+        ),
     }
-    uploaded_item = storage_folder.upload_image(
-        str(image_path),
-        title=f"{packet.incident.id}-{role}{image_path.suffix}",
-        client_metadata=metadata,
-    )
-    uploaded_uuid = getattr(uploaded_item, "uuid", uploaded_item)
-
-    return str(uploaded_uuid)
