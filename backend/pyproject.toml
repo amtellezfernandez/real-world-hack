@@ -7,14 +7,18 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
+    "encord>=0.1.195",
     "fastapi[standard]>=0.136.1",
     "google-genai>=2.0.1",
+    "openai>=2.36.0",
     "pydantic-settings>=2.14.0",
     "shapely>=2.1.2",
 ]
 
 [project.scripts]
 sitewalk-openapi = "sitewalk.api.export_openapi:main"
+sitewalk-encord-ontology = "sitewalk.review_export.encord_cli:print_ontology_main"
+sitewalk-create-encord-ontology = "sitewalk.review_export.encord_cli:create_ontology_main"
 
 [build-system]
 requires = ["uv_build>=0.10.3,<0.11.0"]

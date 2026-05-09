@@ -51,11 +51,11 @@ def get_encord_export_status_detail(
     """Return operator-facing Encord export status detail."""
     if is_encord_configured(config=config):
         return (
-            "Encord credentials are configured; export can be attempted through "
-            "the Encord scaffold."
+            "Encord SSH credentials and project are configured; incident evidence "
+            "can be prepared for Encord export."
         )
 
     return (
-        "Encord export unavailable: credentials are not configured; "
-        "local review queue remains available."
+        "Encord export unavailable: ENCORD_SSH_KEY_FILE and ENCORD_PROJECT_ID "
+        "are not configured; local review queue remains available."
     )

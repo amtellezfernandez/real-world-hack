@@ -56,7 +56,7 @@ def test_review_export_statuses_mark_missing_encord_credentials_unavailable() ->
 def test_review_export_statuses_mark_configured_encord_as_scaffolded() -> None:
     statuses = build_review_export_provider_statuses(
         env={
-            "ENCORD_API_KEY": "encord-key",
+            "ENCORD_SSH_KEY_FILE": "encord-airw_hack-private-key.ed25519",
             "ENCORD_PROJECT_ID": "encord-project",
         },
     )
@@ -66,8 +66,8 @@ def test_review_export_statuses_mark_configured_encord_as_scaffolded() -> None:
         ProviderAvailability.CONFIGURED
     )
     assert statuses_by_provider[ReviewExportProvider.ENCORD].detail == (
-        "Encord credentials are configured; export can be attempted through "
-        "the Encord scaffold."
+        "Encord SSH credentials and project are configured; incident evidence "
+        "can be prepared for Encord export."
     )
 
 

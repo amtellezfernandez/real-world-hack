@@ -25,7 +25,7 @@ const contract = {
       provider: "encord",
       availability: "unconfigured",
       detail:
-        "Encord export unavailable: credentials are not configured; local review queue remains available.",
+        "Encord export unavailable: ENCORD_SSH_KEY_FILE and ENCORD_PROJECT_ID are not configured; local review queue remains available.",
     },
   ],
   provider_integration_statuses: [
@@ -127,7 +127,7 @@ describe("createContractSummary", () => {
       {
         availabilityLabel: "Unconfigured",
         detail:
-          "Encord export unavailable: credentials are not configured; local review queue remains available.",
+          "Encord export unavailable: ENCORD_SSH_KEY_FILE and ENCORD_PROJECT_ID are not configured; local review queue remains available.",
         provider: "encord",
         providerLabel: "Encord",
       },
