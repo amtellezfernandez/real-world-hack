@@ -1,24 +1,11 @@
 import type { ProductContract } from "../api-client/types";
 import { formatToken } from "./format-token";
-import {
-  formatAlertProvider,
-  formatProviderIntegration,
-} from "./provider-labels";
+import { formatProviderIntegration } from "./provider-labels";
 
-type VoiceProviderToken =
-  ProductContract["voice_provider_statuses"][number]["provider"];
 type ReviewExportProviderToken =
   ProductContract["review_export_provider_statuses"][number]["provider"];
 type ProviderIntegrationToken =
   ProductContract["provider_integration_statuses"][number]["provider"];
-
-/** UI-ready status for a voice output provider. */
-export type VoiceProviderStatusSummary = {
-  availabilityLabel: string;
-  detail: string;
-  provider: VoiceProviderToken;
-  providerLabel: string;
-};
 
 /** UI-ready status for a review export provider. */
 export type ReviewExportProviderStatusSummary = {
@@ -49,7 +36,6 @@ export type ContractSummary = {
   referenceZoneName: string;
   providerIntegrationStatuses: ProviderIntegrationStatusSummary[];
   reviewExportProviderStatuses: ReviewExportProviderStatusSummary[];
-  voiceProviderStatuses: VoiceProviderStatusSummary[];
 };
 
 /** Convert generated backend contract tokens into operations-shell labels. */
@@ -84,11 +70,5 @@ export function createContractSummary(
         providerLabel: formatToken(status.provider),
       }),
     ),
-    voiceProviderStatuses: contract.voice_provider_statuses.map((status) => ({
-      availabilityLabel: formatToken(status.availability),
-      detail: status.detail,
-      provider: status.provider,
-      providerLabel: formatAlertProvider(status.provider),
-    })),
   };
 }

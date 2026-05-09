@@ -424,15 +424,11 @@ function ObservationMarker({
   switch (observedState) {
     case "clear":
       return (
-        <div className="frame-marker frame-marker--clear">
-          Robot zone clear
-        </div>
+        <div className="frame-marker frame-marker--clear">Robot zone clear</div>
       );
     case "blocked":
       return (
-        <div className="frame-marker frame-marker--blocked">
-          Zone occupied
-        </div>
+        <div className="frame-marker frame-marker--blocked">Zone occupied</div>
       );
     case "uncertain":
       return (
@@ -525,13 +521,7 @@ function ContractPanel({
           ) : null}
           {activeFrame.alert !== null ? (
             <DetailList
-              rows={[
-                { label: "Alert", value: activeFrame.alert.transcript },
-                { label: "Provider", value: activeFrame.alert.providerLabel },
-                ...(activeFrame.alert.audioRef === null
-                  ? []
-                  : [{ label: "Audio", value: activeFrame.alert.audioRef }]),
-              ]}
+              rows={[{ label: "Alert", value: activeFrame.alert.transcript }]}
             />
           ) : null}
           {activeFrame.verification !== null ? (
@@ -626,18 +616,6 @@ function ContractPanel({
             key: status.provider,
             label: status.providerLabel,
             meta: status.boundaryLabel,
-            status: status.availabilityLabel,
-          }))}
-        />
-      </section>
-
-      <section className="panel-section">
-        <p className="eyebrow">Audio backends</p>
-        <ProviderStatusList
-          rows={summary.voiceProviderStatuses.map((status) => ({
-            detail: status.detail,
-            key: status.provider,
-            label: status.providerLabel,
             status: status.availabilityLabel,
           }))}
         />

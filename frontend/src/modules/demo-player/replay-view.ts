@@ -1,6 +1,5 @@
 import type { DemoReplay, ObservedState } from "../api-client/types";
 import { formatToken } from "../safety-ui/format-token";
-import { formatAlertProvider } from "../safety-ui/provider-labels";
 
 /** Timing mode token for demo playback controls. */
 export type ReplayTimingMode = DemoReplay["timing"]["options"][number]["mode"];
@@ -13,8 +12,6 @@ export type IncidentReportView = {
 
 /** Alert event fields prepared for the operations rail. */
 export type AlertEventView = {
-  audioRef: string | null;
-  providerLabel: string;
   transcript: string;
 };
 
@@ -286,8 +283,6 @@ function createAlertView(
   }
 
   return {
-    audioRef: alertEvent.audio_ref ?? null,
-    providerLabel: formatAlertProvider(alertEvent.provider),
     transcript: alertEvent.alert_text,
   };
 }

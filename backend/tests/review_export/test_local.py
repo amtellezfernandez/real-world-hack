@@ -4,7 +4,6 @@ import pytest
 
 from sitewalk.contracts import (
     AlertEvent,
-    AlertProvider,
     ClearanceVerification,
     EvidenceFrame,
     EvidenceSource,
@@ -51,9 +50,7 @@ def make_verified_clear_incident() -> SafetyIncident:
                 incident_id="incident-zone-workcell-a2-frame-workcell-sustained-blocked",
                 approval_actor="demo-supervisor",
                 alert_text="Robotics notice: clear the obstruction at Robot Workcell A-2.",
-                provider=AlertProvider.LOCAL_AUDIO,
                 timestamp="2026-05-08T12:00:35+00:00",
-                audio_ref="assets/audio/local-alert.wav",
             ),
         ],
         verification=ClearanceVerification(

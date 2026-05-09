@@ -3,7 +3,6 @@ from sitewalk.providers.ports import (
     IncidentReporter,
     PerceptionSource,
     ReviewExporter,
-    VoiceBroadcaster,
 )
 
 __all__ = [
@@ -11,5 +10,4 @@ __all__ = [
     "IncidentReporter",
     "PerceptionSource",
     "ReviewExporter",
-    "VoiceBroadcaster",
 ]

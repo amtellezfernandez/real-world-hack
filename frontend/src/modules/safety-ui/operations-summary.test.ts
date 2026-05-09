@@ -12,26 +12,8 @@ const contract = {
   provider_boundaries: [
     "perception",
     "incident_reporting",
-    "voice",
     "verification",
     "review_export",
-  ],
-  voice_provider_statuses: [
-    {
-      provider: "local_audio",
-      availability: "available",
-      detail: "Local prebuilt alert audio is available.",
-    },
-    {
-      provider: "mistral",
-      availability: "unconfigured",
-      detail: "Mistral credentials are not configured.",
-    },
-    {
-      provider: "elevenlabs",
-      availability: "unconfigured",
-      detail: "ElevenLabs credentials are not configured.",
-    },
   ],
   review_export_provider_statuses: [
     {
@@ -132,29 +114,8 @@ describe("createContractSummary", () => {
     expect(summary.providerBoundaryLabels).toEqual([
       "Perception",
       "Incident reporting",
-      "Voice",
       "Verification",
       "Review export",
-    ]);
-    expect(summary.voiceProviderStatuses).toEqual([
-      {
-        availabilityLabel: "Available",
-        detail: "Local prebuilt alert audio is available.",
-        provider: "local_audio",
-        providerLabel: "Local audio",
-      },
-      {
-        availabilityLabel: "Unconfigured",
-        detail: "Mistral credentials are not configured.",
-        provider: "mistral",
-        providerLabel: "Mistral",
-      },
-      {
-        availabilityLabel: "Unconfigured",
-        detail: "ElevenLabs credentials are not configured.",
-        provider: "elevenlabs",
-        providerLabel: "ElevenLabs",
-      },
     ]);
     expect(summary.reviewExportProviderStatuses).toEqual([
       {

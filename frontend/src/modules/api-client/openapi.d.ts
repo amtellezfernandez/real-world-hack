@@ -70,7 +70,7 @@ export interface components {
     schemas: {
         /**
          * AlertEvent
-         * @description Human-approved alert broadcast record.
+         * @description Human-approved alert transcript record.
          */
         AlertEvent: {
             /** Incident Id */
@@ -79,18 +79,9 @@ export interface components {
             approval_actor: string;
             /** Alert Text */
             alert_text: string;
-            provider: components["schemas"]["AlertProvider"];
             /** Timestamp */
             timestamp: string;
-            /** Audio Ref */
-            audio_ref?: string | null;
         };
-        /**
-         * AlertProvider
-         * @description Voice output provider categories exposed to product code.
-         * @enum {string}
-         */
-        AlertProvider: "local_audio" | "mistral" | "elevenlabs";
         /**
          * AuditPacket
          * @description Closed incident evidence package.
@@ -156,7 +147,7 @@ export interface components {
         };
         /**
          * DemoReplay
-         * @description Controlled replay source for the primary robot-workcell demo.
+         * @description Controlled replay source for the primary robotics supervision demo.
          */
         DemoReplay: {
             /** Id */
@@ -329,8 +320,6 @@ export interface components {
             zone_types: components["schemas"]["ZoneType"][];
             /** Provider Boundaries */
             provider_boundaries: components["schemas"]["ProviderBoundary"][];
-            /** Voice Provider Statuses */
-            voice_provider_statuses: components["schemas"]["VoiceProviderStatus"][];
             /** Review Export Provider Statuses */
             review_export_provider_statuses: components["schemas"]["ReviewExportProviderStatus"][];
             /** Provider Integration Statuses */
@@ -351,13 +340,13 @@ export interface components {
          * @description Backend-only integration boundaries.
          * @enum {string}
          */
-        ProviderBoundary: "perception" | "incident_reporting" | "voice" | "verification" | "review_export";
+        ProviderBoundary: "perception" | "incident_reporting" | "verification" | "review_export";
         /**
          * ProviderIntegration
          * @description Concrete provider integrations exposed for demo readiness.
          * @enum {string}
          */
-        ProviderIntegration: "local_replay" | "runpod_yolo" | "local_incident_report" | "openai_foundry" | "local_audio" | "mistral" | "elevenlabs" | "local_clearance" | "gemini_robotics_er" | "local_review" | "encord";
+        ProviderIntegration: "local_replay" | "runpod_yolo" | "local_incident_report" | "openai_foundry" | "local_clearance" | "gemini_robotics_er" | "local_review" | "encord";
         /**
          * ProviderIntegrationStatus
          * @description Readiness status for a concrete provider integration.
@@ -453,16 +442,6 @@ export interface components {
          */
         VerificationVerdict: "clear" | "still_blocked" | "uncertain";
         /**
-         * VoiceProviderStatus
-         * @description Availability status for a voice output provider.
-         */
-        VoiceProviderStatus: {
-            provider: components["schemas"]["AlertProvider"];
-            availability: components["schemas"]["ProviderAvailability"];
-            /** Detail */
-            detail: string;
-        };
-        /**
          * ZonePoint
          * @description Normalized image coordinate for a zone polygon.
          */
@@ -477,7 +456,7 @@ export interface components {
          * @description Supported critical-zone categories.
          * @enum {string}
          */
-        ZoneType: "emergency_exit" | "walkway" | "forklift_lane";
+        ZoneType: "emergency_exit" | "walkway" | "forklift_lane" | "robot_workcell";
     };
     responses: never;
     parameters: never;

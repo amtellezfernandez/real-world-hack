@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "RobotOps Sentinel API",
-    "summary": "Closed-loop critical-zone safety monitoring backend.",
+    "summary": "Closed-loop robotics supervision backend.",
     "license": {
       "name": "Proprietary hackathon prototype",
       "identifier": "LicenseRef-Proprietary"
@@ -99,23 +99,9 @@
             "type": "string",
             "title": "Alert Text"
           },
-          "provider": {
-            "$ref": "#/components/schemas/AlertProvider"
-          },
           "timestamp": {
             "type": "string",
             "title": "Timestamp"
-          },
-          "audio_ref": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Audio Ref"
           }
         },
         "additionalProperties": false,
@@ -124,21 +110,10 @@
           "incident_id",
           "approval_actor",
           "alert_text",
-          "provider",
           "timestamp"
         ],
         "title": "AlertEvent",
-        "description": "Human-approved alert broadcast record."
-      },
-      "AlertProvider": {
-        "type": "string",
-        "enum": [
-          "local_audio",
-          "mistral",
-          "elevenlabs"
-        ],
-        "title": "AlertProvider",
-        "description": "Voice output provider categories exposed to product code."
+        "description": "Human-approved alert transcript record."
       },
       "AuditPacket": {
         "properties": {
@@ -314,7 +289,7 @@
           "frames"
         ],
         "title": "DemoReplay",
-        "description": "Controlled replay source for the primary robot-workcell demo."
+        "description": "Controlled replay source for the primary robotics supervision demo."
       },
       "DemoTiming": {
         "properties": {
@@ -677,13 +652,6 @@
             "type": "array",
             "title": "Provider Boundaries"
           },
-          "voice_provider_statuses": {
-            "items": {
-              "$ref": "#/components/schemas/VoiceProviderStatus"
-            },
-            "type": "array",
-            "title": "Voice Provider Statuses"
-          },
           "review_export_provider_statuses": {
             "items": {
               "$ref": "#/components/schemas/ReviewExportProviderStatus"
@@ -720,7 +688,6 @@
           "severity_levels",
           "zone_types",
           "provider_boundaries",
-          "voice_provider_statuses",
           "review_export_provider_statuses",
           "provider_integration_statuses",
           "reference_zone",
@@ -746,7 +713,6 @@
         "enum": [
           "perception",
           "incident_reporting",
-          "voice",
           "verification",
           "review_export"
         ],
@@ -760,9 +726,6 @@
           "runpod_yolo",
           "local_incident_report",
           "openai_foundry",
-          "local_audio",
-          "mistral",
-          "elevenlabs",
           "local_clearance",
           "gemini_robotics_er",
           "local_review",
@@ -1015,29 +978,6 @@
         "title": "VerificationVerdict",
         "description": "Clearance verification verdicts."
       },
-      "VoiceProviderStatus": {
-        "properties": {
-          "provider": {
-            "$ref": "#/components/schemas/AlertProvider"
-          },
-          "availability": {
-            "$ref": "#/components/schemas/ProviderAvailability"
-          },
-          "detail": {
-            "type": "string",
-            "title": "Detail"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "provider",
-          "availability",
-          "detail"
-        ],
-        "title": "VoiceProviderStatus",
-        "description": "Availability status for a voice output provider."
-      },
       "ZonePoint": {
         "properties": {
           "x": {
@@ -1067,7 +1007,8 @@
         "enum": [
           "emergency_exit",
           "walkway",
-          "forklift_lane"
+          "forklift_lane",
+          "robot_workcell"
         ],
         "title": "ZoneType",
         "description": "Supported critical-zone categories."

@@ -54,8 +54,6 @@ def test_provider_integration_statuses_mark_configured_sponsor_scaffolds() -> No
         env={
             "OPENAI_API_KEY": "openai-key",
             "GEMINI_API_KEY": "gemini-key",
-            "MISTRAL_API_KEY": "mistral-key",
-            "ELEVENLABS_API_KEY": "elevenlabs-key",
             "ENCORD_API_KEY": "encord-key",
             "ENCORD_PROJECT_ID": "encord-project",
         },
@@ -71,12 +69,6 @@ def test_provider_integration_statuses_mark_configured_sponsor_scaffolds() -> No
     assert statuses_by_provider[
         ProviderIntegration.GEMINI_ROBOTICS_ER
     ].availability == (ProviderAvailability.CONFIGURED)
-    assert statuses_by_provider[ProviderIntegration.MISTRAL].availability == (
-        ProviderAvailability.CONFIGURED
-    )
-    assert statuses_by_provider[ProviderIntegration.ELEVENLABS].availability == (
-        ProviderAvailability.CONFIGURED
-    )
     assert statuses_by_provider[ProviderIntegration.ENCORD].availability == (
         ProviderAvailability.CONFIGURED
     )

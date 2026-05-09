@@ -8,7 +8,6 @@ from pydantic import ValidationError
 from sitewalk.api.main import app
 from sitewalk.api.demo_replay_service import assess_demo_replay
 from sitewalk.contracts import (
-    AlertProvider,
     AuditPacket,
     ClearanceVerification,
     CriticalZone,
@@ -94,17 +93,9 @@ async def test_product_contract_exposes_incident_and_observation_concepts() -> N
     assert [boundary.value for boundary in contract.provider_boundaries] == [
         "perception",
         "incident_reporting",
-        "voice",
         "verification",
         "review_export",
     ]
-    statuses_by_provider = {
-        status.provider: status for status in contract.voice_provider_statuses
-    }
-    assert statuses_by_provider[AlertProvider.LOCAL_AUDIO].availability == (
-        ProviderAvailability.AVAILABLE
-    )
-    assert set(statuses_by_provider) == set(AlertProvider)
     export_statuses_by_provider = {
         status.provider: status for status in contract.review_export_provider_statuses
     }
@@ -175,10 +166,6 @@ async def test_demo_replay_exposes_clear_and_blocked_frames() -> None:
     assert replay.frames[3].assessment.incident.alert_events[0].alert_text == (
         "Robotics notice: clear the obstruction at Robot Workcell A-2."
     )
-    assert (
-        replay.frames[3].assessment.incident.alert_events[0].audio_ref
-        == "assets/audio/local-alert.wav"
-    )
     assert replay.frames[4].assessment.incident is not None
     assert replay.frames[4].assessment.incident.verification is not None
     assert replay.frames[4].assessment.incident.verification.verdict == (
@@ -216,22 +203,6 @@ async def test_demo_replay_exposes_clear_and_blocked_frames() -> None:
     assert replay.frames[5].assessment.incident.review_sample.export_status == (
         ExportStatus.LOCAL_ONLY
     )
-
-
-async def test_demo_replay_uses_local_alert_without_elevenlabs_credentials(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
-
-    response = await get_response("/api/demo-replay")
-
-    assert response.status_code == 200
-    replay = DemoReplay.model_validate(response.json())
-    alert_incident = replay.frames[3].assessment.incident
-    assert alert_incident is not None
-    assert alert_incident.alert_events[0].provider == AlertProvider.LOCAL_AUDIO
-    assert alert_incident.alert_events[0].audio_ref == "assets/audio/local-alert.wav"
-
 
 def test_demo_replay_alerts_after_first_incident_frame_not_fixed_index() -> None:
     replay = build_blocked_exit_replay()

@@ -59,14 +59,6 @@ class Severity(StrEnum):
     CRITICAL = "critical"
 
 
-class AlertProvider(StrEnum):
-    """Voice output provider categories exposed to product code."""
-
-    LOCAL_AUDIO = "local_audio"
-    MISTRAL = "mistral"
-    ELEVENLABS = "elevenlabs"
-
-
 class EvidenceSource(StrEnum):
     """Evidence frame source categories."""
 
@@ -114,7 +106,6 @@ class ProviderBoundary(StrEnum):
 
     PERCEPTION = "perception"
     INCIDENT_REPORTING = "incident_reporting"
-    VOICE = "voice"
     VERIFICATION = "verification"
     REVIEW_EXPORT = "review_export"
 
@@ -126,9 +117,6 @@ class ProviderIntegration(StrEnum):
     RUNPOD_YOLO = "runpod_yolo"
     LOCAL_INCIDENT_REPORT = "local_incident_report"
     OPENAI_FOUNDRY = "openai_foundry"
-    LOCAL_AUDIO = "local_audio"
-    MISTRAL = "mistral"
-    ELEVENLABS = "elevenlabs"
     LOCAL_CLEARANCE = "local_clearance"
     GEMINI_ROBOTICS_ER = "gemini_robotics_er"
     LOCAL_REVIEW = "local_review"
@@ -141,14 +129,6 @@ class ProviderAvailability(StrEnum):
     AVAILABLE = "available"
     CONFIGURED = "configured"
     UNCONFIGURED = "unconfigured"
-
-
-class VoiceProviderStatus(ContractModel):
-    """Availability status for a voice output provider."""
-
-    provider: AlertProvider
-    availability: ProviderAvailability
-    detail: str
 
 
 class ReviewExportProviderStatus(ContractModel):
@@ -262,14 +242,12 @@ class IncidentReport(ContractModel):
 
 
 class AlertEvent(ContractModel):
-    """Human-approved alert broadcast record."""
+    """Human-approved alert transcript record."""
 
     incident_id: str
     approval_actor: str
     alert_text: str
-    provider: AlertProvider
     timestamp: str
-    audio_ref: str | None = None
 
 
 class ClearanceVerification(ContractModel):
@@ -509,7 +487,6 @@ class ProductContract(ContractModel):
     severity_levels: list[Severity]
     zone_types: list[ZoneType]
     provider_boundaries: list[ProviderBoundary]
-    voice_provider_statuses: list[VoiceProviderStatus]
     review_export_provider_statuses: list[ReviewExportProviderStatus]
     provider_integration_statuses: list[ProviderIntegrationStatus]
     reference_zone: CriticalZone

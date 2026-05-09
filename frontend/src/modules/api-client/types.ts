@@ -6,9 +6,6 @@ export type HealthResponse = components["schemas"]["HealthResponse"];
 /** Backend-generated product contract shared with the frontend. */
 export type ProductContract = components["schemas"]["ProductContract"];
 
-/** Voice output provider token from backend contracts. */
-export type AlertProvider = components["schemas"]["AlertProvider"];
-
 /** Concrete provider integration token from backend contracts. */
 export type ProviderIntegration = components["schemas"]["ProviderIntegration"];
 

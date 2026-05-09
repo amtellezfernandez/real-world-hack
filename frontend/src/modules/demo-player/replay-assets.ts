@@ -8,8 +8,10 @@ const replayImageAssets = [
   },
   {
     fileName: "workcell-blocked.svg",
-    url: new URL("../../../../assets/demo/workcell-blocked.svg", import.meta.url)
-      .href,
+    url: new URL(
+      "../../../../assets/demo/workcell-blocked.svg",
+      import.meta.url,
+    ).href,
   },
 ] as const;
 

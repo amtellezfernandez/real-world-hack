@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 
 from sitewalk.contracts import (
+    AlertEvent,
     DemoReplay,
     EvidenceFrame,
     IncidentState,
@@ -13,7 +14,6 @@ from sitewalk.contracts import (
 from sitewalk.review_export import attach_local_evidence_package
 from sitewalk.safety import assess_observation
 from sitewalk.verification import verify_clearance
-from sitewalk.voice import broadcast_local_audio_alert
 
 
 def assess_demo_replay(replay: ObservationReplay) -> DemoReplay:
@@ -200,10 +200,14 @@ def approve_incident_alert(
     if incident.state != IncidentState.INCIDENT_OPEN:
         raise ValueError("only incident_open incidents can be approved for alert")
 
-    alert_event = broadcast_local_audio_alert(
-        incident=incident,
+    if incident.incident_report is None:
+        raise ValueError("incident must include an incident report before alerting")
+
+    alert_event = AlertEvent(
+        incident_id=incident.id,
         approval_actor=approval_actor,
-        timestamp=timestamp,
+        alert_text=incident.incident_report.alert_text_candidate,
+        timestamp=timestamp.isoformat(),
     )
 
     return SafetyIncident(

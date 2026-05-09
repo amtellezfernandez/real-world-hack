@@ -179,13 +179,12 @@ const replay = {
           },
           alert_events: [
             {
-              incident_id: "incident-zone-workcell-a2-frame-workcell-sustained-blocked",
+              incident_id:
+                "incident-zone-workcell-a2-frame-workcell-sustained-blocked",
               approval_actor: "demo-supervisor",
               alert_text:
                 "Robotics notice: clear the obstruction at Robot Workcell A-2.",
-              provider: "local_audio",
               timestamp: "2026-05-08T12:00:35+00:00",
-              audio_ref: "assets/audio/local-alert.wav",
             },
           ],
           verification: null,
@@ -324,7 +323,7 @@ describe("createReplayViewModel", () => {
     });
   });
 
-  test("exposes approved local alert transcript and provider", () => {
+  test("exposes approved alert transcript", () => {
     const replayView = createReplayViewModel(replay);
     const alertFrame = selectReplayFrame(
       replayView,
@@ -333,9 +332,8 @@ describe("createReplayViewModel", () => {
 
     expect(alertFrame.incidentStateLabel).toBe("Alert broadcast");
     expect(alertFrame.alert).toEqual({
-      audioRef: "assets/audio/local-alert.wav",
-      providerLabel: "Local audio",
-      transcript: "Robotics notice: clear the obstruction at Robot Workcell A-2.",
+      transcript:
+        "Robotics notice: clear the obstruction at Robot Workcell A-2.",
     });
   });
 

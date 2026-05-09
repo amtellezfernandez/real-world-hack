@@ -19,7 +19,6 @@ from sitewalk.contracts import (
 from sitewalk.demo_data import PRIMARY_DEMO_ZONE
 from sitewalk.providers.integration_status import build_provider_integration_statuses
 from sitewalk.review_export.provider_status import build_review_export_provider_statuses
-from sitewalk.voice.provider_status import build_voice_provider_statuses
 
 router = APIRouter(prefix="/api", tags=["contracts"])
 
@@ -49,7 +48,6 @@ REFERENCE_INCIDENT = SafetyIncident(
     before_evidence_frame_id=REFERENCE_EVIDENCE_FRAME.id,
 )
 
-VOICE_PROVIDER_STATUSES = build_voice_provider_statuses(env=environ)
 REVIEW_EXPORT_PROVIDER_STATUSES = build_review_export_provider_statuses(env=environ)
 
 REFERENCE_PRODUCT_CONTRACT = ProductContract(
@@ -59,11 +57,9 @@ REFERENCE_PRODUCT_CONTRACT = ProductContract(
     severity_levels=list(Severity),
     zone_types=list(ZoneType),
     provider_boundaries=list(ProviderBoundary),
-    voice_provider_statuses=VOICE_PROVIDER_STATUSES,
     review_export_provider_statuses=REVIEW_EXPORT_PROVIDER_STATUSES,
     provider_integration_statuses=build_provider_integration_statuses(
         env=environ,
-        voice_statuses=VOICE_PROVIDER_STATUSES,
         review_statuses=REVIEW_EXPORT_PROVIDER_STATUSES,
     ),
     reference_zone=PRIMARY_DEMO_ZONE,

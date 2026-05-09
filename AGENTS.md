@@ -15,4 +15,4 @@ Treat `docs/TASKS.md` as the persistent execution state. Update it whenever a fe
 
 - Build vertical slices while preserving deep module boundaries.
 - Keep provider SDKs behind backend ports/adapters.
-- Do not let frontend code call voice, perception, verification, or review/export providers directly.
+- Do not let frontend code call perception, verification, or review/export providers directly.
