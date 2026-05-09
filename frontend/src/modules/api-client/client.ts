@@ -15,7 +15,7 @@ export function getApiBaseUrl(): string {
   return configuredBaseUrl;
 }
 
-/** Typed OpenAPI client for RobotOps Sentinel backend contracts. */
+/** Typed OpenAPI client for URDF Zone backend contracts. */
 export const apiClient = createClient<paths>({
   baseUrl: getApiBaseUrl(),
 });

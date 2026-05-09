@@ -1,6 +1,6 @@
-# RobotOps Sentinel Frontend
+# URDF Zone Frontend
 
-Vite React TypeScript shell for the robotics operations view.
+Vite React TypeScript shell for the robot autoload and audit view.
 
 The stage demo runbook lives in `../docs/DEMO_REHEARSAL.md`.
 

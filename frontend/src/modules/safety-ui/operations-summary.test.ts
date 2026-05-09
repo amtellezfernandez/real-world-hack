@@ -124,7 +124,7 @@ describe("createContractSummary", () => {
   test("formats generated backend contract values for the operations shell", () => {
     const summary = createContractSummary(contract);
 
-    expect(summary.primaryWorkflowLabel).toBe("Blocked robot workcell");
+    expect(summary.primaryWorkflowLabel).toBe("Robot workcell obstruction");
     expect(summary.referenceZoneName).toBe("Robot Workcell A-2");
     expect(summary.referenceIncidentState).toBe("Alert pending");
     expect(summary.referenceEvidenceTimestamp).toBe("2026-05-08T12:00:00Z");

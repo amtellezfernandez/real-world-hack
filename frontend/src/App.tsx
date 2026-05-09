@@ -51,7 +51,7 @@ type ProviderStatusRow = {
   status: string;
 };
 
-/** RobotOps Sentinel operations application shell. */
+/** URDF Zone frontend shell. */
 function App() {
   const [loadState, setLoadState] = useState<OperationsLoadState>(initialState);
   const [activeFrameId, setActiveFrameId] = useState("");
@@ -194,13 +194,16 @@ function App() {
     <main className="operations-shell">
       <header className="topbar">
         <div>
-          <p className="eyebrow">RobotOps Sentinel</p>
-          <h1>{contractSummary?.referenceZoneName ?? "Critical zone"}</h1>
+          <p className="eyebrow">URDF Zone</p>
+          <h1>Autoloaded robot</h1>
+          <p className="subhead">
+            {contractSummary?.referenceZoneName ?? "Waiting for robot scene"}
+          </p>
         </div>
-        <div className="status-pill">Operations data: {loadState.status}</div>
+        <div className="status-pill">Robot scene: {loadState.status}</div>
       </header>
 
-      <section className="workspace" aria-label="Robotics operations workspace">
+      <section className="workspace" aria-label="URDF Zone audit workspace">
         <div className="video-stage">
           {loadState.status === "ready" &&
           replayView !== null &&
@@ -221,14 +224,14 @@ function App() {
             <div
               className="camera-frame camera-frame--empty"
               role="img"
-              aria-label="Emergency exit camera view loading"
+              aria-label="Robot scene loading"
             >
-              <div className="timestamp">Awaiting replay</div>
+              <div className="timestamp">Awaiting robot autoload</div>
             </div>
           )}
         </div>
 
-        <aside className="incident-rail" aria-label="Incident state">
+        <aside className="incident-rail" aria-label="Audit state">
           {loadState.status === "loading" ? (
             <p className="muted">Connecting to {getApiBaseUrl()}</p>
           ) : null}
@@ -415,10 +418,16 @@ function ObservationMarker({
 }) {
   switch (observedState) {
     case "clear":
-      return <div className="frame-marker frame-marker--clear">Clear path</div>;
+      return (
+        <div className="frame-marker frame-marker--clear">
+          Robot zone clear
+        </div>
+      );
     case "blocked":
       return (
-        <div className="frame-marker frame-marker--blocked">Zone overlap</div>
+        <div className="frame-marker frame-marker--blocked">
+          Zone occupied
+        </div>
       );
     case "uncertain":
       return (
@@ -449,7 +458,7 @@ function ContractPanel({
   return (
     <>
       <section className="panel-section">
-        <p className="eyebrow">Primary workflow</p>
+        <p className="eyebrow">Autoloaded scene</p>
         <h2>{summary.primaryWorkflowLabel}</h2>
         <dl className="incident-facts">
           <div>
@@ -482,7 +491,7 @@ function ContractPanel({
 
       {activeFrame !== null ? (
         <section className="panel-section">
-          <p className="eyebrow">Policy assessment</p>
+          <p className="eyebrow">Audit packet</p>
           <h2>{activeFrame.incidentStateLabel}</h2>
           <p className="assessment-reason">{activeFrame.policyReason}</p>
           {incidentReport !== null ? (
@@ -589,7 +598,7 @@ function ContractPanel({
       </section>
 
       <section className="panel-section">
-        <p className="eyebrow">Provider selection</p>
+        <p className="eyebrow">Execution backends</p>
         <ProviderStatusList
           rows={summary.providerIntegrationStatuses.map((status) => ({
             detail: status.detail,
@@ -602,7 +611,7 @@ function ContractPanel({
       </section>
 
       <section className="panel-section">
-        <p className="eyebrow">Voice providers</p>
+        <p className="eyebrow">Audio backends</p>
         <ProviderStatusList
           rows={summary.voiceProviderStatuses.map((status) => ({
             detail: status.detail,
@@ -614,7 +623,7 @@ function ContractPanel({
       </section>
 
       <section className="panel-section">
-        <p className="eyebrow">Review export</p>
+        <p className="eyebrow">Encord review</p>
         <ProviderStatusList
           rows={summary.reviewExportProviderStatuses.map((status) => ({
             detail: status.detail,

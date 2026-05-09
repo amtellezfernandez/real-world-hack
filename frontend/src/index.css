@@ -104,6 +104,12 @@ h2 {
   letter-spacing: 0;
 }
 
+.subhead {
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: 0.96rem;
+}
+
 .status-pill {
   min-width: 190px;
   padding: 8px 12px;
