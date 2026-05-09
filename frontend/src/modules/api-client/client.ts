@@ -2,7 +2,7 @@ import createClient from "openapi-fetch";
 
 import type { paths } from "./openapi";
 
-const DEFAULT_API_BASE_URL = "/api";
+const DEFAULT_API_BASE_URL = "http://127.0.0.1:8000";
 
 /** Resolve the backend API URL from frontend-safe Vite configuration. */
 export function getApiBaseUrl(): string {

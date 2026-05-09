@@ -20,6 +20,10 @@ const START_POSE: MotionPose = {
 
 const STOP_X = 46;
 const POSE_STEP = 0.1;
+const BACKEND_BASE_URL =
+  import.meta.env.VITE_BACKEND_URL ?? "http://127.0.0.1:8000";
+const LIVE_INCIDENT_OPEN_ENDPOINT = `${BACKEND_BASE_URL}/api/demo-replay/incident/open`;
+const LIVE_INCIDENT_RESOLVE_ENDPOINT = `${BACKEND_BASE_URL}/api/demo-replay/incident/resolve`;
 function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const poseRef = useRef(START_POSE);
@@ -229,7 +233,7 @@ function App() {
 
     setEncordStatus("sending");
     setEncordMessage("Sending before frame to the backend.");
-    const result = await sendLiveIncidentSignal("/api/demo-replay/incident/open", capturedBefore);
+    const result = await sendLiveIncidentSignal(LIVE_INCIDENT_OPEN_ENDPOINT, capturedBefore);
     if (result.status !== "accepted") {
       setEncordStatus("failed");
       setEncordMessage(result.detail);
@@ -278,7 +282,7 @@ function App() {
 
     setEncordStatus("sending");
     setEncordMessage("Sending after frame to the backend and exporting to Encord.");
-    const result = await sendLiveIncidentSignal("/api/demo-replay/incident/resolve", capturedAfter);
+    const result = await sendLiveIncidentSignal(LIVE_INCIDENT_RESOLVE_ENDPOINT, capturedAfter);
     if (result.status === "exported") {
       setEncordStatus("exported");
       setEncordMessage(result.detail);
