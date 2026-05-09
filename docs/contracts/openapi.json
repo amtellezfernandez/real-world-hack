@@ -60,6 +60,205 @@
         }
       }
     },
+    "/api/observations/stream": {
+      "get": {
+        "tags": [
+          "incidents"
+        ],
+        "summary": "Stream Observations",
+        "operationId": "stream_observations_api_observations_stream_get",
+        "responses": {
+          "200": {
+            "description": "Server-sent observation event stream.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/incidents/{incident_id}": {
+      "get": {
+        "tags": [
+          "incidents"
+        ],
+        "summary": "Get Incident",
+        "operationId": "get_incident_api_incidents__incident_id__get",
+        "parameters": [
+          {
+            "name": "incident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Incident Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/incidents/{incident_id}/approve-alert": {
+      "post": {
+        "tags": [
+          "incidents"
+        ],
+        "summary": "Approve Alert",
+        "operationId": "approve_alert_api_incidents__incident_id__approve_alert_post",
+        "parameters": [
+          {
+            "name": "incident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Incident Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveAlertRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentCommandResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/incidents/{incident_id}/verify-clearance": {
+      "post": {
+        "tags": [
+          "incidents"
+        ],
+        "summary": "Verify Clearance",
+        "operationId": "verify_clearance_api_incidents__incident_id__verify_clearance_post",
+        "parameters": [
+          {
+            "name": "incident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Incident Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClearanceVerificationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/incidents/{incident_id}/audit-packet": {
+      "get": {
+        "tags": [
+          "incidents"
+        ],
+        "summary": "Get Audit Packet",
+        "operationId": "get_audit_packet_api_incidents__incident_id__audit_packet_get",
+        "parameters": [
+          {
+            "name": "incident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Incident Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditPacket"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/product-contract": {
       "get": {
         "tags": [
@@ -114,6 +313,40 @@
         ],
         "title": "AlertEvent",
         "description": "Human-approved alert transcript record."
+      },
+      "ApproveAlertRequest": {
+        "properties": {
+          "approval_actor": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Approval Actor"
+          },
+          "decision": {
+            "type": "string",
+            "const": "approved",
+            "title": "Decision"
+          },
+          "alert_text": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Alert Text"
+          },
+          "idempotency_key": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Idempotency Key"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "approval_actor",
+          "decision",
+          "alert_text",
+          "idempotency_key"
+        ],
+        "title": "ApproveAlertRequest",
+        "description": "Human alert approval command."
       },
       "AuditPacket": {
         "properties": {
@@ -191,6 +424,29 @@
         ],
         "title": "ClearanceVerification",
         "description": "Before/after visual clearance verification record."
+      },
+      "ClearanceVerificationResponse": {
+        "properties": {
+          "incident_id": {
+            "type": "string",
+            "title": "Incident Id"
+          },
+          "state": {
+            "$ref": "#/components/schemas/IncidentState"
+          },
+          "verification": {
+            "$ref": "#/components/schemas/ClearanceVerification"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "incident_id",
+          "state",
+          "verification"
+        ],
+        "title": "ClearanceVerificationResponse",
+        "description": "Result for a clearance verification command."
       },
       "CriticalZone": {
         "properties": {
@@ -446,6 +702,19 @@
         "title": "ExportStatus",
         "description": "Review/export availability states."
       },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
       "HealthResponse": {
         "properties": {
           "service": {
@@ -471,6 +740,77 @@
         ],
         "title": "HealthResponse",
         "description": "Backend readiness response."
+      },
+      "IncidentCommandResponse": {
+        "properties": {
+          "incident_id": {
+            "type": "string",
+            "title": "Incident Id"
+          },
+          "state": {
+            "$ref": "#/components/schemas/IncidentState"
+          },
+          "alert_event": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AlertEvent"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "incident_id",
+          "state"
+        ],
+        "title": "IncidentCommandResponse",
+        "description": "Result for incident state-changing commands."
+      },
+      "IncidentDetail": {
+        "properties": {
+          "incident_id": {
+            "type": "string",
+            "title": "Incident Id"
+          },
+          "state": {
+            "$ref": "#/components/schemas/IncidentState"
+          },
+          "incident_report": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IncidentReport"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "severity": {
+            "$ref": "#/components/schemas/Severity"
+          },
+          "recommendation": {
+            "type": "string",
+            "title": "Recommendation"
+          },
+          "latest_observation": {
+            "$ref": "#/components/schemas/Observation"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "incident_id",
+          "state",
+          "severity",
+          "recommendation",
+          "latest_observation"
+        ],
+        "title": "IncidentDetail",
+        "description": "Incident snapshot for the detail panel."
       },
       "IncidentReport": {
         "properties": {
@@ -967,6 +1307,46 @@
         ],
         "title": "Severity",
         "description": "Incident severity levels."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
       },
       "VerificationVerdict": {
         "type": "string",

@@ -282,6 +282,61 @@ class ReviewSample(ContractModel):
     export_status: ExportStatus
 
 
+class ObservationStreamZone(ContractModel):
+    """Zone state emitted over the live observation stream."""
+
+    state: ObservedState
+    dwell_seconds: float = Field(ge=0)
+
+
+class ObservationStreamIncident(ContractModel):
+    """Incident state emitted over the live observation stream."""
+
+    id: str
+    state: IncidentState
+
+
+class ObservationStreamBox(ContractModel):
+    """Detection annotation emitted over the live observation stream."""
+
+    label: str
+    confidence: float = Field(ge=0, le=1)
+
+
+class ObservationStreamEvent(ContractModel):
+    """Single observation event for the live operations UI."""
+
+    frame_id: str
+    boxes: list[ObservationStreamBox] = Field(default_factory=list)
+    zone: ObservationStreamZone
+    incident: ObservationStreamIncident | None = None
+
+
+class ApproveAlertRequest(ContractModel):
+    """Human alert approval command."""
+
+    approval_actor: str = Field(min_length=1)
+    decision: Literal["approved"]
+    alert_text: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+
+
+class IncidentCommandResponse(ContractModel):
+    """Result for incident state-changing commands."""
+
+    incident_id: str
+    state: IncidentState
+    alert_event: AlertEvent | None = None
+
+
+class ClearanceVerificationResponse(ContractModel):
+    """Result for a clearance verification command."""
+
+    incident_id: str
+    state: IncidentState
+    verification: ClearanceVerification
+
+
 class SafetyIncident(ContractModel):
     """Operational record for a critical-zone safety violation."""
 
@@ -356,6 +411,17 @@ class SafetyIncident(ContractModel):
             raise ValueError("audit packet verdict must match verification")
 
         return self
+
+
+class IncidentDetail(ContractModel):
+    """Incident snapshot for the detail panel."""
+
+    incident_id: str
+    state: IncidentState
+    incident_report: IncidentReport | None = None
+    severity: Severity
+    recommendation: str
+    latest_observation: Observation
 
 
 class ObservationAssessment(ContractModel):

@@ -196,6 +196,7 @@ def approve_incident_alert(
     incident: SafetyIncident,
     approval_actor: str,
     timestamp: datetime,
+    alert_text: str | None = None,
 ) -> SafetyIncident:
     if incident.state != IncidentState.INCIDENT_OPEN:
         raise ValueError("only incident_open incidents can be approved for alert")
@@ -206,7 +207,7 @@ def approve_incident_alert(
     alert_event = AlertEvent(
         incident_id=incident.id,
         approval_actor=approval_actor,
-        alert_text=incident.incident_report.alert_text_candidate,
+        alert_text=alert_text or incident.incident_report.alert_text_candidate,
         timestamp=timestamp.isoformat(),
     )
 

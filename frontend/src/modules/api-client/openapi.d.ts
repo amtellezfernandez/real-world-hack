@@ -44,6 +44,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/observations/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Stream Observations */
+        get: operations["stream_observations_api_observations_stream_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/incidents/{incident_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Incident */
+        get: operations["get_incident_api_incidents__incident_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/incidents/{incident_id}/approve-alert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve Alert */
+        post: operations["approve_alert_api_incidents__incident_id__approve_alert_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/incidents/{incident_id}/verify-clearance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify Clearance */
+        post: operations["verify_clearance_api_incidents__incident_id__verify_clearance_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/incidents/{incident_id}/audit-packet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Audit Packet */
+        get: operations["get_audit_packet_api_incidents__incident_id__audit_packet_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/product-contract": {
         parameters: {
             query?: never;
@@ -83,6 +168,23 @@ export interface components {
             timestamp: string;
         };
         /**
+         * ApproveAlertRequest
+         * @description Human alert approval command.
+         */
+        ApproveAlertRequest: {
+            /** Approval Actor */
+            approval_actor: string;
+            /**
+             * Decision
+             * @constant
+             */
+            decision: "approved";
+            /** Alert Text */
+            alert_text: string;
+            /** Idempotency Key */
+            idempotency_key: string;
+        };
+        /**
          * AuditPacket
          * @description Closed incident evidence package.
          */
@@ -119,6 +221,16 @@ export interface components {
             rationale: string;
             /** After Evidence Frame Id */
             after_evidence_frame_id: string;
+        };
+        /**
+         * ClearanceVerificationResponse
+         * @description Result for a clearance verification command.
+         */
+        ClearanceVerificationResponse: {
+            /** Incident Id */
+            incident_id: string;
+            state: components["schemas"]["IncidentState"];
+            verification: components["schemas"]["ClearanceVerification"];
         };
         /**
          * CriticalZone
@@ -231,6 +343,11 @@ export interface components {
          * @enum {string}
          */
         ExportStatus: "local_only" | "export_pending" | "exported" | "export_unavailable";
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
+        };
         /**
          * HealthResponse
          * @description Backend readiness response.
@@ -245,6 +362,30 @@ export interface components {
             status: "ready";
             /** Version */
             version: string;
+        };
+        /**
+         * IncidentCommandResponse
+         * @description Result for incident state-changing commands.
+         */
+        IncidentCommandResponse: {
+            /** Incident Id */
+            incident_id: string;
+            state: components["schemas"]["IncidentState"];
+            alert_event?: components["schemas"]["AlertEvent"] | null;
+        };
+        /**
+         * IncidentDetail
+         * @description Incident snapshot for the detail panel.
+         */
+        IncidentDetail: {
+            /** Incident Id */
+            incident_id: string;
+            state: components["schemas"]["IncidentState"];
+            incident_report?: components["schemas"]["IncidentReport"] | null;
+            severity: components["schemas"]["Severity"];
+            /** Recommendation */
+            recommendation: string;
+            latest_observation: components["schemas"]["Observation"];
         };
         /**
          * IncidentReport
@@ -435,6 +576,19 @@ export interface components {
          * @enum {string}
          */
         Severity: "low" | "medium" | "high" | "critical";
+        /** ValidationError */
+        ValidationError: {
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
+        };
         /**
          * VerificationVerdict
          * @description Clearance verification verdicts.
@@ -502,6 +656,154 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    stream_observations_api_observations_stream_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Server-sent observation event stream. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": string;
+                };
+            };
+        };
+    };
+    get_incident_api_incidents__incident_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_alert_api_incidents__incident_id__approve_alert_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApproveAlertRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentCommandResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    verify_clearance_api_incidents__incident_id__verify_clearance_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClearanceVerificationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_audit_packet_api_incidents__incident_id__audit_packet_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditPacket"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

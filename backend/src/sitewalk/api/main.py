@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from sitewalk.api.routes import demo_replay, health, product_contract
+from sitewalk.api.routes import demo_replay, health, incidents, product_contract
 from sitewalk.api.state import AppContainer
 from sitewalk.config import Settings, get_settings
 
@@ -28,11 +28,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.add_middleware(
         CORSMiddleware,
         allow_origins=resolved_settings.cors_origins,
-        allow_methods=["GET"],
+        allow_methods=["GET", "POST"],
         allow_headers=["*"],
     )
     application.include_router(demo_replay.router)
     application.include_router(health.router)
+    application.include_router(incidents.router)
     application.include_router(product_contract.router)
     return application
 
