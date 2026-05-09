@@ -8,12 +8,12 @@ from sitewalk.contracts import (
     ReviewExportProvider,
     ReviewExportProviderStatus,
 )
+from sitewalk.providers.gemini_robotics_er_config import GEMINI_API_KEY_ENV
 from sitewalk.review_export.provider_status import (
     build_review_export_provider_statuses,
 )
 
 OPENAI_API_KEY_ENV = "OPENAI_API_KEY"
-GEMINI_API_KEY_ENV = "GEMINI_API_KEY"
 
 
 def build_provider_integration_statuses(
