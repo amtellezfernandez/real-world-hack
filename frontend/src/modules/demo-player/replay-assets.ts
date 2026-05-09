@@ -3,15 +3,11 @@ const DEMO_ASSET_REF_PREFIX = "assets/demo/";
 const replayImageAssets = [
   {
     fileName: "workcell-clear.svg",
-    url: new URL("../../../../assets/demo/workcell-clear.svg", import.meta.url)
-      .href,
+    url: "/assets/demo/workcell-clear.svg",
   },
   {
     fileName: "workcell-blocked.svg",
-    url: new URL(
-      "../../../../assets/demo/workcell-blocked.svg",
-      import.meta.url,
-    ).href,
+    url: "/assets/demo/workcell-blocked.svg",
   },
 ] as const;
 

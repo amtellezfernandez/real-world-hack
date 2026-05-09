@@ -1,42 +1,23 @@
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 
-import { apiClient, getApiBaseUrl } from "./modules/api-client/client";
-import type {
-  DemoReplay,
-  ObservedState,
-  ProductContract,
-} from "./modules/api-client/types";
+import type { ProductContract } from "./modules/api-client/types";
 import { resolveReplayImageUrl } from "./modules/demo-player/replay-assets";
+import {
+  LOCAL_DEMO_REPLAY,
+  LOCAL_PRODUCT_CONTRACT,
+} from "./modules/demo-data/local-demo";
 import {
   createReplayImageAlt,
   createReplayViewModel,
   type ReplayFrameView,
-  type ReplayTimingMode,
-  type ReplayTimingOptionView,
   type ReplayViewModel,
-  selectNextReplayFrameId,
   selectReplayFrame,
-  selectReplayTiming,
 } from "./modules/demo-player/replay-view";
 import {
   type ContractSummary,
   createContractSummary,
 } from "./modules/safety-ui/operations-summary";
-
-type OperationsLoadState =
-  | { status: "loading" }
-  | {
-      contract: ProductContract;
-      replay: DemoReplay;
-      status: "ready";
-    }
-  | {
-      message: string;
-      status: "error";
-    };
-
-const initialState: OperationsLoadState = { status: "loading" };
 
 type DetailRow = {
   label: string;
@@ -51,277 +32,78 @@ type ProviderStatusRow = {
   status: string;
 };
 
-/** Kiwi robot audit shell. */
+/** Robot audit shell. */
 function App() {
-  const [loadState, setLoadState] = useState<OperationsLoadState>(initialState);
-  const [activeFrameId, setActiveFrameId] = useState("");
-  const [activeTimingMode, setActiveTimingMode] =
-    useState<ReplayTimingMode | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [playbackEpoch, setPlaybackEpoch] = useState(0);
-  const playbackEpochRef = useRef(playbackEpoch);
-  const replay = loadState.status === "ready" ? loadState.replay : null;
-  const contractSummary =
-    loadState.status === "ready"
-      ? createContractSummary(loadState.contract)
-      : null;
+  const [activeFrameId, setActiveFrameId] = useState(
+    () => LOCAL_DEMO_REPLAY.frames[0]?.id ?? "",
+  );
+  const replay = LOCAL_DEMO_REPLAY;
+  const contractSummary = useMemo(
+    () => createContractSummary(LOCAL_PRODUCT_CONTRACT),
+    [],
+  );
   const replayView = useMemo(
-    () => (replay === null ? null : createReplayViewModel(replay)),
+    () => createReplayViewModel(replay),
     [replay],
   );
-  const activeReplayFrame =
-    replayView === null ? null : selectReplayFrame(replayView, activeFrameId);
-  const activeReplayTiming =
-    replayView === null
-      ? null
-      : selectReplayTiming(replayView, activeTimingMode);
-
-  useEffect(() => {
-    if (!isPlaying || replayView === null || activeReplayTiming === null) {
-      return;
-    }
-
-    playbackEpochRef.current = playbackEpoch;
-    const nextFrameId = selectNextReplayFrameId(replayView, activeFrameId);
-
-    if (nextFrameId === null) {
-      setIsPlaying(false);
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setActiveFrameId(nextFrameId);
-    }, activeReplayTiming.frameIntervalMs);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [activeFrameId, activeReplayTiming, isPlaying, playbackEpoch, replayView]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function loadOperationsData(requestController: AbortController) {
-      const signal = requestController.signal;
-
-      try {
-        const [contractResult, replayResult] = await Promise.all([
-          apiClient.GET("/api/product-contract", { signal }),
-          apiClient.GET("/api/demo-replay", { signal }),
-        ]);
-
-        if (signal.aborted) {
-          return;
-        }
-
-        if (contractResult.data === undefined) {
-          setLoadState({
-            message: describeApiLoadFailure(
-              "Backend contract",
-              contractResult.response.status,
-              contractResult.error,
-            ),
-            status: "error",
-          });
-          return;
-        }
-
-        if (replayResult.data === undefined) {
-          setLoadState({
-            message: describeApiLoadFailure(
-              "Demo replay",
-              replayResult.response.status,
-              replayResult.error,
-            ),
-            status: "error",
-          });
-          return;
-        }
-
-        const firstFrame = replayResult.data.frames[0];
-        if (firstFrame === undefined) {
-          setLoadState({
-            message: "Demo replay has no frames",
-            status: "error",
-          });
-          return;
-        }
-
-        setLoadState({
-          contract: contractResult.data,
-          replay: replayResult.data,
-          status: "ready",
-        });
-        setActiveFrameId(firstFrame.id);
-        setActiveTimingMode(replayResult.data.timing.default_mode);
-        setIsPlaying(false);
-      } catch (error: unknown) {
-        if (signal.aborted || isAbortError(error)) {
-          return;
-        }
-
-        requestController.abort();
-        setLoadState({
-          message: describeThrownContractError(error),
-          status: "error",
-        });
-      }
-    }
-
-    void loadOperationsData(controller);
-
-    return () => {
-      controller.abort();
-    };
-  }, []);
-
-  function restartReplay() {
-    const firstFrame = replayView?.frameOptions[0];
-
-    if (firstFrame === undefined) {
-      return;
-    }
-
-    setActiveFrameId(firstFrame.id);
-    setIsPlaying(true);
-    setPlaybackEpoch((epoch) => epoch + 1);
-  }
+  const activeReplayFrame = selectReplayFrame(replayView, activeFrameId);
 
   function selectManualFrame(frameId: string) {
     setActiveFrameId(frameId);
-    setIsPlaying(false);
   }
 
   return (
     <main className="operations-shell">
       <header className="topbar">
         <div className="brand-block">
-          <p className="eyebrow">Kiwi</p>
-          <h1>Robot audit workspace</h1>
+          <p className="eyebrow">Runtime</p>
+          <h1>Robot audit console</h1>
           <p className="subhead">
-            {contractSummary?.referenceZoneName ?? "Waiting for robot scene"}
+            {contractSummary?.referenceZoneName ?? "Loading robot environment"}
           </p>
         </div>
         <div className="status-strip">
-          <span className="status-pill">Scene: {loadState.status}</span>
+          <span className="status-pill">Source local</span>
           <span className="status-pill">
-            Mode: {replayView?.defaultTimingMode ?? "pending"}
+            Evidence {activeReplayFrame?.label ?? "pending"}
+          </span>
+          <span className="status-pill">
+            Review {contractSummary?.referenceEvidenceTimestamp ?? "pending"}
           </span>
         </div>
       </header>
 
-      <section className="workspace" aria-label="Kiwi robot audit workspace">
+      <section className="workspace" aria-label="Robot audit console">
         <div className="video-stage">
-          {loadState.status === "ready" &&
-          replayView !== null &&
-          activeReplayFrame !== null ? (
-            <ReplayStage
-              activeFrameId={activeFrameId}
-              activeFrame={activeReplayFrame}
-              activeTiming={activeReplayTiming}
-              activeTimingMode={activeTimingMode}
-              isPlaying={isPlaying}
-              onFrameSelect={selectManualFrame}
-              onPlayingChange={setIsPlaying}
-              onRestart={restartReplay}
-              onTimingSelect={setActiveTimingMode}
-              replayView={replayView}
-            />
-          ) : (
-            <div
-              className="camera-frame camera-frame--empty"
-              role="img"
-              aria-label="Robot scene loading"
-            >
-              <div className="timestamp">Awaiting robot autoload</div>
-            </div>
-          )}
+          <ReplayStage
+            activeFrameId={activeFrameId}
+            activeFrame={activeReplayFrame}
+            onFrameSelect={selectManualFrame}
+            replayView={replayView}
+          />
         </div>
 
         <aside className="incident-rail" aria-label="Audit state">
-          {loadState.status === "loading" ? (
-            <p className="muted">Connecting to backend at {getApiBaseUrl()}</p>
-          ) : null}
-
-          {loadState.status === "error" ? (
-            <div className="alert-block">
-              <h2>{loadState.message}</h2>
-              <p>{getApiBaseUrl()}</p>
-            </div>
-          ) : null}
-
-          {loadState.status === "ready" && contractSummary !== null ? (
-            <ContractPanel
-              activeFrame={activeReplayFrame}
-              contract={loadState.contract}
-              summary={contractSummary}
-            />
-          ) : null}
+          <ContractPanel
+            activeFrame={activeReplayFrame}
+            contract={LOCAL_PRODUCT_CONTRACT}
+            summary={contractSummary}
+          />
         </aside>
       </section>
     </main>
   );
 }
 
-function describeApiLoadFailure(
-  resourceName: string,
-  status: number,
-  error: unknown,
-): string {
-  const detail = describeUnknownError(error);
-
-  if (detail.length === 0) {
-    return `${resourceName} unavailable (${status})`;
-  }
-
-  return `${resourceName} unavailable (${status}): ${detail}`;
-}
-
-function describeThrownContractError(error: unknown): string {
-  const detail = describeUnknownError(error);
-
-  if (detail.length === 0) {
-    return "Backend contract request failed";
-  }
-
-  return `Backend contract request failed: ${detail}`;
-}
-
-function describeUnknownError(error: unknown): string {
-  if (typeof error === "string") {
-    return error;
-  }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return "";
-}
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof DOMException && error.name === "AbortError";
-}
-
 function ReplayStage({
   activeFrameId,
   activeFrame,
-  activeTiming,
-  activeTimingMode,
-  isPlaying,
   onFrameSelect,
-  onPlayingChange,
-  onRestart,
-  onTimingSelect,
   replayView,
 }: {
   activeFrameId: string;
   activeFrame: ReplayFrameView;
-  activeTiming: ReplayTimingOptionView | null;
-  activeTimingMode: ReplayTimingMode | null;
-  isPlaying: boolean;
   onFrameSelect: (frameId: string) => void;
-  onPlayingChange: (isPlaying: boolean) => void;
-  onRestart: () => void;
-  onTimingSelect: (timingMode: ReplayTimingMode) => void;
   replayView: ReplayViewModel;
 }) {
   return (
@@ -334,63 +116,21 @@ function ReplayStage({
           className="replay-image"
           src={resolveReplayImageUrl(activeFrame.imageRef)}
         />
-        <div className="zone-outline" style={replayView.zoneBox}>
-          <span>{replayView.zoneName}</span>
-        </div>
-        <ObservationMarker observedState={activeFrame.observedState} />
         <div className="timestamp">{activeFrame.timestamp}</div>
       </div>
 
-      {activeTiming !== null ? (
-        <div className="playback-bar">
-          <div className="playback-status">
-            <strong>{activeTiming.label}</strong>
-            <span>
-              {activeTiming.frameIntervalLabel} · {activeTiming.dwellLabel} ·{" "}
-              {activeTiming.clearanceLabel}
-            </span>
-          </div>
-          <div className="playback-actions">
-            <button onClick={onRestart} type="button">
-              Restart
-            </button>
-            <button onClick={() => onPlayingChange(!isPlaying)} type="button">
-              {isPlaying ? "Pause" : "Play"}
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      <fieldset className="timing-controls">
-        <legend className="visually-hidden">Demo timing</legend>
-        {replayView.timingOptions.map((timing) => (
-          <button
-            aria-pressed={timing.mode === activeTimingMode}
-            className="timing-control"
-            key={timing.mode}
-            onClick={() => onTimingSelect(timing.mode)}
-            type="button"
-          >
-            <strong>{timing.label}</strong>
-            <span>{timing.frameIntervalLabel}</span>
-            <small>{timing.providerRequirementLabel}</small>
-          </button>
-        ))}
-      </fieldset>
-
-      <fieldset className="replay-controls">
-        <legend className="visually-hidden">Replay frames</legend>
+      <div className="evidence-strip" aria-label="Evidence frames">
         {replayView.frameOptions.map((frame) => (
           <button
             aria-pressed={frame.id === activeFrameId}
-            className="replay-control"
+            className="evidence-control"
             key={frame.id}
             onClick={() => onFrameSelect(frame.id)}
             type="button"
           >
             <span>
               {frame.label}
-              <small>{frame.dwellLabel}</small>
+              <small>{frame.timestamp}</small>
             </span>
             <strong>
               {frame.observationLabel}
@@ -398,7 +138,7 @@ function ReplayStage({
             </strong>
           </button>
         ))}
-      </fieldset>
+      </div>
     </section>
   );
 }
@@ -415,36 +155,6 @@ function getCameraFrameClass(observedState: ObservedState): string {
       return "camera-frame--unavailable";
   }
 }
-
-function ObservationMarker({
-  observedState,
-}: {
-  observedState: ObservedState;
-}) {
-  switch (observedState) {
-    case "clear":
-      return (
-        <div className="frame-marker frame-marker--clear">Robot zone clear</div>
-      );
-    case "blocked":
-      return (
-        <div className="frame-marker frame-marker--blocked">Zone occupied</div>
-      );
-    case "uncertain":
-      return (
-        <div className="frame-marker frame-marker--uncertain">
-          Review needed
-        </div>
-      );
-    case "camera_unavailable":
-      return (
-        <div className="frame-marker frame-marker--unavailable">
-          Feed unavailable
-        </div>
-      );
-  }
-}
-
 function ContractPanel({
   activeFrame,
   contract,
@@ -459,8 +169,14 @@ function ContractPanel({
   return (
     <>
       <section className="panel-section">
-        <p className="eyebrow">Scene summary</p>
+        <p className="eyebrow">Robot summary</p>
         <h2>{summary.primaryWorkflowLabel}</h2>
+        <div className="status-chips" aria-label="Current system state">
+          <span className="status-chip status-chip--live">Live</span>
+          <span className="status-chip">Observed</span>
+          <span className="status-chip">Verified</span>
+          <span className="status-chip">Escalated</span>
+        </div>
         <dl className="incident-facts">
           <div>
             <dt>Zone</dt>
@@ -491,12 +207,12 @@ function ContractPanel({
         <DetailList
           rows={[
             {
-              label: "Robot",
-              value: "Kiwi",
+              label: "Platform",
+              value: "Autodetected",
             },
             {
               label: "Scene",
-              value: "Autoloaded",
+              value: "Live feed",
             },
             {
               label: "Evidence",
@@ -508,7 +224,7 @@ function ContractPanel({
 
       {activeFrame !== null ? (
         <section className="panel-section">
-          <p className="eyebrow">Current frame</p>
+          <p className="eyebrow">Selected evidence</p>
           <h2>{activeFrame.incidentStateLabel}</h2>
           <p className="assessment-reason">{activeFrame.policyReason}</p>
           {incidentReport !== null ? (
@@ -634,7 +350,7 @@ function ContractPanel({
       </section>
 
       <section className="panel-section">
-        <p className="eyebrow">Backend provider boundaries</p>
+        <p className="eyebrow">Integration boundaries</p>
         <ul className="boundary-list">
           {summary.providerBoundaryLabels.map((label) => (
             <li key={label}>{label}</li>
